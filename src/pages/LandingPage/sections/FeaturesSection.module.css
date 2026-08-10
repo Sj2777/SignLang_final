@@ -1,0 +1,147 @@
+.section {
+  padding: var(--space-24) 0;
+  background-color: var(--color-bg);
+}
+
+/* ── Section header ── */
+.header {
+  text-align: center;
+  margin-bottom: var(--space-16);
+  max-width: 620px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.eyebrow {
+  display: inline-block;
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--color-primary);
+  margin-bottom: var(--space-4);
+}
+
+.heading {
+  font-size: clamp(2rem, 4vw, 3rem);
+  letter-spacing: -0.02em;
+  margin-bottom: var(--space-5);
+}
+
+.sub {
+  font-family: var(--font-sans);
+  font-size: 1.125rem;
+  color: var(--color-text-secondary);
+  line-height: 1.6;
+}
+
+/* ── Card grid ── */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--space-6);
+}
+
+/* ── Card ── */
+.card {
+  background: rgba(var(--color-surface-rgb, 255, 255, 255), 0.8);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: var(--radius-md);
+  padding: var(--space-6);
+  position: relative;
+  transition: all var(--transition-base);
+  display: flex;
+  flex-direction: column;
+  box-shadow: var(--shadow-sm);
+}
+
+/* Solid shadow effect for brutalist/editorial feel */
+.card::after {
+  content: '';
+  position: absolute;
+  top: 6px; left: 6px;
+  right: -6px; bottom: -6px;
+  background-color: var(--card-color);
+  border-radius: var(--radius-md);
+  z-index: -1;
+  opacity: 0;
+  transition: opacity var(--transition-fast), transform var(--transition-base);
+}
+
+.card:hover {
+  transform: translate(-4px, -4px);
+  border-color: var(--card-color);
+}
+.card:hover::after {
+  opacity: 1;
+  transform: translate(4px, 4px);
+}
+
+.cardHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-5);
+}
+
+.iconWrap {
+  width: 48px; height: 48px;
+  border-radius: 50%;
+  background: var(--color-bg);
+  border: 2px solid var(--color-border);
+  display: flex; align-items: center; justify-content: center;
+  color: var(--card-color);
+  transition: border-color var(--transition-fast);
+}
+.card:hover .iconWrap {
+  border-color: var(--card-color);
+}
+.icon {
+  width: 24px; height: 24px;
+}
+
+.tag {
+  font-family: var(--font-sans);
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-text-tertiary);
+  transition: color var(--transition-fast);
+}
+.card:hover .tag {
+  color: var(--card-color);
+}
+
+.title {
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  font-weight: 700;
+  margin-bottom: var(--space-3);
+  color: var(--color-text-primary);
+  letter-spacing: -0.01em;
+}
+
+.desc {
+  font-family: var(--font-sans);
+  font-size: 0.9375rem;
+  color: var(--color-text-secondary);
+  line-height: 1.6;
+  flex: 1;
+}
+
+/* ── Responsive ── */
+@media (max-width: 1100px) {
+  .grid { grid-template-columns: repeat(3, 1fr); }
+}
+@media (max-width: 860px) {
+  .grid { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 560px) {
+  .grid { grid-template-columns: 1fr; }
+  .card:hover { transform: translate(-2px, -2px); }
+  .card:hover::after { transform: translate(2px, 2px); }
+}
