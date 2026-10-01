@@ -1,4 +1,3 @@
-import { useNavigate } from 'react-router-dom';
 import styles from './HeroSection.module.css';
 
 const HeroImage = () => (
@@ -12,10 +11,7 @@ const HeroImage = () => (
   </div>
 );
 
-export default function HeroSection({ onCTA }) {
-  const navigate = useNavigate();
-  const handleCTA = onCTA || (() => navigate('/dashboard'));
-
+export default function HeroSection() {
   return (
     <section className={styles.hero} aria-labelledby="hero-heading">
       {/* Organic background shapes instead of cyber grids */}
@@ -45,9 +41,9 @@ export default function HeroSection({ onCTA }) {
           </p>
 
           <div className={styles.ctas}>
-            <button onClick={handleCTA} className={styles.btnPrimary} id="hero-cta-signup">
+            <a href="#account-types" className={styles.btnPrimary} id="hero-cta-signup">
               Start Learning
-            </button>
+            </a>
             <a href="#features" className={styles.btnGhost}>
               Discover features →
             </a>

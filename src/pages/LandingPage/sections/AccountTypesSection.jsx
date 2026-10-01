@@ -1,4 +1,3 @@
-import { useNavigate } from 'react-router-dom';
 import styles from './AccountTypesSection.module.css';
 
 const HandShakeSVG = () => (
@@ -22,8 +21,7 @@ const CheckIcon = () => (
   </svg>
 );
 
-export default function AccountTypesSection({ onNavigate }) {
-  const navigate = useNavigate();
+export default function AccountTypesSection() {
 
   return (
     <section className={styles.section} id="account-types" aria-labelledby="accounts-heading">
@@ -56,12 +54,12 @@ export default function AccountTypesSection({ onNavigate }) {
               <li><span className={styles.check} style={{color: 'var(--color-primary)'}}><CheckIcon /></span> Community leaderboards</li>
             </ul>
 
-            <button 
+            <a 
+              href="#features"
               className={styles.btnPrimary} 
-              onClick={() => onNavigate ? onNavigate('client') : navigate('/dashboard')}
             >
               Start Learning Free
-            </button>
+            </a>
           </article>
 
           {/* ── Organization Card ── */}
@@ -81,12 +79,12 @@ export default function AccountTypesSection({ onNavigate }) {
               <li><span className={styles.check} style={{color: 'var(--color-accent)'}}><CheckIcon /></span> Analytics & outreach tools</li>
             </ul>
 
-            <button 
+            <a 
+              href="#about"
               className={styles.btnAccent} 
-              onClick={() => navigate('/org-dashboard')}
             >
               Register your Organization
-            </button>
+            </a>
           </article>
         </div>
       </div>

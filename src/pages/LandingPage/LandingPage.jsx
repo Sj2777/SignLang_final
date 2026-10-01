@@ -1,4 +1,3 @@
-import { useNavigate } from 'react-router-dom';
 import Header from '../../components/Header/Header';
 import Footer from '../../components/Footer/Footer';
 import HeroSection from './sections/HeroSection';
@@ -8,16 +7,14 @@ import StatsSection from './sections/StatsSection';
 import styles from './LandingPage.module.css';
 
 export default function LandingPage() {
-  const navigate = useNavigate();
-
   return (
     <div className={styles.page}>
       <Header />
       <main className={styles.main}>
-        <HeroSection onCTA={() => navigate('/dashboard')} />
+        <HeroSection />
         <StatsSection />
         <FeaturesSection />
-        <AccountTypesSection onNavigate={() => navigate('/dashboard')} />
+        <AccountTypesSection />
       </main>
       <Footer />
     </div>

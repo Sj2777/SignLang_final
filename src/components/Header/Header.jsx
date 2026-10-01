@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
-import { useAuth } from '../../context/AuthContext';
+import { Link } from 'react-router-dom';
 import { useTheme } from '../../context/ThemeContext';
 import styles from './Header.module.css';
 
@@ -20,27 +19,14 @@ const Logo = () => (
 );
 
 export default function Header() {
-  const { user, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
-  const navigate = useNavigate();
   const [scrolled, setScrolled] = useState(false);
-  const [menuOpen, setMenuOpen] = useState(false);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 20);
     window.addEventListener('scroll', onScroll, { passive: true });
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
-
-  const handleLogout = () => {
-    logout();
-    setMenuOpen(false);
-    navigate('/');
-  };
-
-  const initials = user?.name
-    ? user.name.slice(0, 2).toUpperCase()
-    : '??';
 
   return (
     <header className={`${styles.header} ${scrolled ? styles.scrolled : ''}`}>
@@ -62,45 +48,9 @@ export default function Header() {
             {theme === 'light' ? '🌙' : '☀️'}
           </button>
           
-          {user ? (
-            <div className={styles.userMenu}>
-              <button
-                className={styles.avatarBtn}
-                onClick={() => setMenuOpen(o => !o)}
-                aria-expanded={menuOpen}
-                aria-haspopup="true"
-                aria-label="User menu"
-              >
-                <div className={styles.avatar}>{initials}</div>
-                <span className={styles.avatarName}>{user.name}</span>
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"
-                     className={`${styles.chevron} ${menuOpen ? styles.chevronOpen : ''}`}>
-                  <path d="M4 6l4 4 4-4" stroke="currentColor" strokeWidth="1.5"
-                        strokeLinecap="round" fill="none" />
-                </svg>
-              </button>
-              {menuOpen && (
-                <div className={styles.dropdown} role="menu">
-                  <Link
-                    to={user.role === 'organization' ? '/org-dashboard' : '/dashboard'}
-                    className={styles.dropdownItem}
-                    role="menuitem"
-                    onClick={() => setMenuOpen(false)}
-                  >
-                    <span>📊</span> Dashboard
-                  </Link>
-                  <button className={`${styles.dropdownItem} ${styles.dropdownItemDanger}`}
-                          role="menuitem" onClick={handleLogout}>
-                    <span>🚪</span> Sign Out
-                  </button>
-                </div>
-              )}
-            </div>
-          ) : (
-            <Link to="/dashboard" className={styles.btnPrimary} id="header-dashboard-btn">
-              Dashboard
-            </Link>
-          )}
+          <a href="#features" className={styles.btnPrimary} id="header-cta-btn">
+            Get Started
+          </a>
         </div>
       </div>
     </header>
