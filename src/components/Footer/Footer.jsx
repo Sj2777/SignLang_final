@@ -19,7 +19,7 @@ export default function Footer() {
                 </linearGradient>
               </defs>
             </svg>
-            <span className={styles.logoText}>LinkHands</span>
+            <span className={styles.logoText}>HandSpeak</span>
           </div>
           <p className={styles.tagline}>
             Breaking barriers between the hearing and Deaf communities through
@@ -59,7 +59,7 @@ export default function Footer() {
       </div>
 
       <div className={`container ${styles.bottom}`}>
-        <span>© {new Date().getFullYear()} LinkHands. All rights reserved.</span>
+        <span>© {new Date().getFullYear()} HandSpeak. All rights reserved.</span>
         <span className={styles.madeWith}>
           Built for the Deaf & Hard-of-Hearing community 🤟
         </span>

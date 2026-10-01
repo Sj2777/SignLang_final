@@ -32,7 +32,7 @@ export default function AccountTypesSection() {
             Join the community
           </h2>
           <p className={styles.sub}>
-            LinkHands is built for both passionate learners and the organizations that support them.
+            HandSpeak is built for both passionate learners and the organizations that support them.
           </p>
         </header>
 

@@ -97,7 +97,7 @@ export default function FeaturesSection() {
           </h2>
           <p className={styles.sub}>
             From personalized lessons to finding local community events, 
-            LinkHands gives you the tools to thrive in the sign language world.
+            HandSpeak gives you the tools to thrive in the sign language world.
           </p>
         </header>
 
