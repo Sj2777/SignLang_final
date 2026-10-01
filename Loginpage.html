@@ -1,0 +1,260 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Log in – HandSpeak</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#F1F3F6; --field:#FFFFFF; --ink:#101A2C; --muted:#4B586D; --line:#B7C0CE;
+  --primary:#14284B; --primary-hover:#0D1C37; --signal:#F2B705; --error:#A3261B;
+  --display:"Bricolage Grotesque","Helvetica Neue",Arial,sans-serif;
+  --text:"Atkinson Hyperlegible","Segoe UI",system-ui,sans-serif;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{margin:0;background:var(--bg);color:var(--ink);font:1rem/1.55 var(--text)}
+a{color:var(--primary);text-underline-offset:3px}
+:focus-visible{outline:3px solid var(--signal);outline-offset:2px}
+
+.page{min-height:100svh;max-width:34rem;margin-inline:auto;display:grid;grid-template-columns:minmax(0,1fr);align-content:center;
+  padding:1.5rem max(1.25rem,env(safe-area-inset-right)) calc(2.5rem + env(safe-area-inset-bottom)) max(1.25rem,env(safe-area-inset-left))}
+.brand{font:700 1.25rem var(--display);margin:0 0 2rem}
+h1{font:700 clamp(2.1rem,8vw,2.75rem)/1.05 var(--display);letter-spacing:-.02em;margin:0 0 .5rem}
+.lede{margin:0 0 1.5rem;color:var(--muted);max-width:30rem}
+
+.modes{display:flex;border:1px solid var(--primary);border-radius:6px;overflow:hidden;margin-bottom:1.75rem}
+.modes button{flex:1;min-height:48px;padding:.5rem .75rem;line-height:1.25;border:0;background:transparent;color:var(--primary);font:700 1rem var(--text);cursor:pointer}
+.modes button+button{border-left:1px solid var(--primary)}
+.modes button[aria-selected="true"]{background:var(--primary);color:#fff;box-shadow:inset 0 -4px 0 var(--signal)}
+
+.field{margin-bottom:1.25rem}
+label{display:block;margin-bottom:.35rem;font-weight:700}
+.hint{display:block;font-weight:400;color:var(--muted);font-size:.9rem}
+input[type=text],input[type=email],input[type=password]{
+  width:100%;min-height:48px;padding:.6rem .8rem;font:inherit;color:var(--ink);
+  background:var(--field);border:1px solid #6F7C92;border-radius:6px}
+input[aria-invalid="true"]{border:2px solid var(--error)}
+.pw{position:relative}
+.pw input{padding-right:5rem}
+.toggle{position:absolute;right:.25rem;top:50%;transform:translateY(-50%);min-width:48px;min-height:44px;
+  background:none;border:0;color:var(--primary);font:700 .95rem var(--text);text-decoration:underline;cursor:pointer}
+.error{display:flex;gap:.4rem;align-items:flex-start;margin:.45rem 0 0;color:var(--error);font-size:.95rem}
+.error svg{flex:none;margin-top:.2rem}
+
+.row{display:flex;flex-wrap:wrap;justify-content:space-between;gap:.75rem 1rem;margin-bottom:1.5rem}
+.check{display:flex;align-items:center;gap:.6rem}
+.check input{width:1.3rem;height:1.3rem;margin:0;accent-color:var(--primary)}
+.check label{margin:0;font-weight:400}
+
+.btn{width:100%;min-height:50px;border-radius:6px;border:2px solid var(--primary);background:var(--primary);color:#fff;font:700 1rem var(--text);cursor:pointer}
+.btn:hover{background:var(--primary-hover)}
+.btn[aria-busy="true"]{cursor:progress;opacity:.75}
+.btn.secondary{margin-top:.75rem;background:transparent;color:var(--primary)}
+.btn.secondary:hover{background:#E1E6EE}
+.status{min-height:1.5rem;margin:1rem 0 0;font-weight:700}
+.foot{margin:1.5rem 0 0;color:var(--muted)}
+
+@media (min-width:600px){
+  .page{max-width:38rem;padding-block:2.5rem 3rem}
+}
+@media (min-width:900px){
+  .page{max-width:76rem;grid-template-columns:minmax(0,5fr) minmax(0,6fr);align-items:center;
+    column-gap:clamp(2rem,5vw,4rem);padding-inline:2rem}
+  .brand{margin-bottom:3.5rem}
+  h1{font-size:clamp(3rem,5vw,4.5rem)}
+  .lede{font-size:1.125rem}
+  .panel{max-width:30rem;padding-left:clamp(2rem,5vw,4rem);border-left:1px solid var(--line)}
+}
+@media (max-height:520px) and (orientation:landscape){
+  .page{padding-block:1rem}
+  .brand{margin-bottom:1rem}
+}
+
+@media (prefers-reduced-motion:no-preference){
+  .btn,.modes button,input{transition:background-color .15s,border-color .15s}
+}
+</style>
+</head>
+<body>
+<main class="page">
+  <header class="intro">
+    <p class="brand">HandSpeak</p>
+    <h1>Log in</h1>
+    <p class="lede" id="lede"></p>
+  </header>
+
+  <div class="panel">
+    <div class="modes" role="tablist" aria-label="Account type">
+      <button type="button" role="tab" id="tab-individual" data-mode="individual" aria-controls="login">I'm learning on my own</button>
+      <button type="button" role="tab" id="tab-organization" data-mode="organization" aria-controls="login">School or organization</button>
+    </div>
+
+    <form id="login" role="tabpanel" novalidate>
+      <div class="field" data-org hidden>
+        <label for="org">Organization code
+          <span class="hint">Your teacher or administrator gave you this.</span></label>
+        <input type="text" id="org" name="org" autocomplete="organization" autocapitalize="characters" spellcheck="false" data-v disabled aria-describedby="org-error">
+        <p class="error" id="org-error" hidden></p>
+      </div>
+
+      <div class="field">
+        <label for="email" id="email-label">Email</label>
+        <input type="email" id="email" name="email" autocomplete="username" data-v aria-describedby="email-error">
+        <p class="error" id="email-error" hidden></p>
+      </div>
+
+      <div class="field">
+        <label for="password">Password</label>
+        <div class="pw">
+          <input type="password" id="password" name="password" autocomplete="current-password" data-v aria-describedby="password-error">
+          <button type="button" class="toggle" aria-controls="password" aria-pressed="false">Show</button>
+        </div>
+        <p class="error" id="password-error" hidden></p>
+      </div>
+
+      <div class="row">
+        <div class="check"><input type="checkbox" id="remember" name="remember"><label for="remember">Keep me logged in</label></div>
+        <a href="/forgot-password">Forgot your password?</a>
+      </div>
+
+      <button type="submit" class="btn" id="submit">Log in</button>
+      <button type="button" class="btn secondary" id="google" data-solo>Log in with Google</button>
+      <p class="status" id="status" role="status"></p>
+    </form>
+
+    <p class="foot" id="foot"></p>
+  </div>
+</main>
+
+<script>
+const form = document.getElementById('login');
+const tabs = [...document.querySelectorAll('[role=tab]')];
+const submitBtn = document.getElementById('submit');
+const status = document.getElementById('status');
+
+const copy = {
+  individual: {
+    lede: 'Pick up your lessons where you left off.',
+    email: 'Email',
+    foot: 'New here? <a href="/signup">Create an account</a>'
+  },
+  organization: {
+    lede: 'Log in with the organization code from your school or administrator.',
+    email: 'School or work email',
+    foot: 'Setting up a school? <a href="/organizations/new">Register your organization</a>'
+  }
+};
+
+const rules = {
+  org: v => /^[A-Za-z0-9-]{4,}$/.test(v) || 'Enter the code exactly as you were given it. It has at least 4 letters or numbers.',
+  email: v => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v) || "That email doesn't look right. Check for a missing @ or a typo.",
+  password: v => v.length > 0 || 'Enter your password.'
+};
+
+const ERR_ICON = '<svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="7" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 4.5v4.2M8 10.8v.8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>';
+
+function showError(input, message) {
+  const box = document.getElementById(input.id + '-error');
+  input.setAttribute('aria-invalid', message ? 'true' : 'false');
+  box.hidden = !message;
+  box.innerHTML = message ? ERR_ICON + '<span></span>' : '';
+  if (message) box.lastChild.textContent = message;
+}
+
+function validate(input) {
+  if (input.disabled) return true;
+  const value = input.id === 'password' ? input.value : input.value.trim();
+  const result = rules[input.id](value);
+  showError(input, result === true ? '' : result);
+  return result === true;
+}
+
+function setMode(mode) {
+  const org = mode === 'organization';
+  tabs.forEach(t => {
+    const on = t.dataset.mode === mode;
+    t.setAttribute('aria-selected', on);
+    t.tabIndex = on ? 0 : -1;
+  });
+  form.setAttribute('aria-labelledby', 'tab-' + mode);
+  form.querySelectorAll('[data-org]').forEach(el => {
+    el.hidden = !org;
+    el.querySelectorAll('input').forEach(i => i.disabled = !org);
+  });
+  form.querySelectorAll('[data-solo]').forEach(el => el.hidden = org);
+  document.getElementById('lede').textContent = copy[mode].lede;
+  document.getElementById('email-label').textContent = copy[mode].email;
+  document.getElementById('foot').innerHTML = copy[mode].foot;
+  form.querySelectorAll('input[data-v]').forEach(i => showError(i, ''));
+  status.textContent = '';
+  form.dataset.mode = mode;
+}
+
+tabs.forEach((tab, i) => {
+  tab.addEventListener('click', () => setMode(tab.dataset.mode));
+  tab.addEventListener('keydown', e => {
+    if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+    const next = tabs[(i + (e.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length];
+    next.focus();
+    setMode(next.dataset.mode);
+  });
+});
+
+form.querySelectorAll('input[data-v]').forEach(input => {
+  input.addEventListener('blur', () => { if (input.value) validate(input); });
+  input.addEventListener('input', () => { if (input.getAttribute('aria-invalid') === 'true') validate(input); });
+});
+
+const toggle = form.querySelector('.toggle');
+toggle.addEventListener('click', () => {
+  const pw = document.getElementById('password');
+  const show = pw.type === 'password';
+  pw.type = show ? 'text' : 'password';
+  toggle.textContent = show ? 'Hide' : 'Show';
+  toggle.setAttribute('aria-pressed', show);
+});
+
+form.addEventListener('submit', async e => {
+  e.preventDefault();
+  const invalid = [...form.querySelectorAll('input[data-v]')].filter(i => !validate(i));
+  if (invalid.length) { invalid[0].focus(); return; }
+
+  submitBtn.setAttribute('aria-busy', 'true');
+  submitBtn.disabled = true;
+  submitBtn.textContent = 'Logging in…';
+  status.textContent = '';
+
+  const payload = {
+    mode: form.dataset.mode,
+    orgCode: form.org.disabled ? null : form.org.value.trim(),
+    email: form.email.value.trim(),
+    password: form.password.value,
+    remember: form.remember.checked
+  };
+
+  try {
+    // TODO: replace with your real auth request, e.g.
+    // const res = await fetch('/api/auth/login', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload) });
+    await new Promise(r => setTimeout(r, 900));
+    status.textContent = 'Logged in. (Demo only: connect your auth backend in script.)';
+  } catch (err) {
+    status.textContent = "We couldn't log you in. Check your connection and try again.";
+  } finally {
+    submitBtn.removeAttribute('aria-busy');
+    submitBtn.disabled = false;
+    submitBtn.textContent = 'Log in';
+  }
+});
+
+document.getElementById('google').addEventListener('click', () => {
+  // TODO: start your Google sign-in flow (individual accounts only)
+});
+
+setMode('individual');
+</script>
+</body>
+</html>
