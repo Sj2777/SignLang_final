@@ -14,10 +14,10 @@ export default function LandingPage() {
     <div className={styles.page}>
       <Header />
       <main className={styles.main}>
-        <HeroSection onCTA={() => navigate('/auth?tab=signup')} />
+        <HeroSection onCTA={() => navigate('/dashboard')} />
         <StatsSection />
         <FeaturesSection />
-        <AccountTypesSection onNavigate={() => navigate('/auth?tab=signup')} />
+        <AccountTypesSection onNavigate={() => navigate('/dashboard')} />
       </main>
       <Footer />
     </div>

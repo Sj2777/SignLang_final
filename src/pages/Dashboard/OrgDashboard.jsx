@@ -51,11 +51,11 @@ export default function OrgDashboard() {
       <main className={styles.main}>
         <header className={styles.topBar}>
           <div>
-            <h1 className={styles.pageTitle}>{user?.name} Dashboard 🏛️</h1>
+            <h1 className={styles.pageTitle}>{user?.name || 'Organization'} Dashboard 🏛️</h1>
             <p className={styles.pageSub}>Manage your organization, events, and outreach.</p>
           </div>
           <div className={styles.avatar} style={{ background: 'linear-gradient(135deg,#7C3AED,#8B5CF6)' }}>
-            {user?.name?.slice(0,2).toUpperCase()}
+            {(user?.name || 'Organization').slice(0, 2).toUpperCase()}
           </div>
         </header>
 

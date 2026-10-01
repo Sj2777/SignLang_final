@@ -22,7 +22,7 @@ const CheckIcon = () => (
   </svg>
 );
 
-export default function AccountTypesSection() {
+export default function AccountTypesSection({ onNavigate }) {
   const navigate = useNavigate();
 
   return (
@@ -58,7 +58,7 @@ export default function AccountTypesSection() {
 
             <button 
               className={styles.btnPrimary} 
-              onClick={() => navigate('/auth')}
+              onClick={() => onNavigate ? onNavigate('client') : navigate('/dashboard')}
             >
               Start Learning Free
             </button>
@@ -83,7 +83,7 @@ export default function AccountTypesSection() {
 
             <button 
               className={styles.btnAccent} 
-              onClick={() => navigate('/auth')}
+              onClick={() => navigate('/org-dashboard')}
             >
               Register your Organization
             </button>

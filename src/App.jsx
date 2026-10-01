@@ -2,11 +2,9 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
 import LandingPage from './pages/LandingPage/LandingPage';
-import AuthPage from './pages/AuthPage/AuthPage';
 import OrgProfileForm from './pages/OrgProfile/OrgProfileForm';
 import ClientDashboard from './pages/Dashboard/ClientDashboard';
 import OrgDashboard from './pages/Dashboard/OrgDashboard';
-import ProtectedRoute from './components/ProtectedRoute/ProtectedRoute';
 
 function App() {
   return (
@@ -14,43 +12,21 @@ function App() {
       <AuthProvider>
         <BrowserRouter>
           <Routes>
-          <Route path="/" element={<LandingPage />} />
-          <Route path="/auth" element={<AuthPage />} />
+            <Route path="/" element={<LandingPage />} />
 
-          {/* ── Org profile completion — requires auth token but not profileComplete ── */}
-          <Route
-            path="/complete-profile"
-            element={
-              <ProtectedRoute allowedRoles={['organization']} requireProfile={false}>
-                <OrgProfileForm />
-              </ProtectedRoute>
-            }
-          />
+            {/* ── Org profile completion ── */}
+            <Route path="/complete-profile" element={<OrgProfileForm />} />
 
-          {/* ── Protected: Client dashboard ── */}
-          <Route
-            path="/dashboard"
-            element={
-              <ProtectedRoute allowedRoles={['client']} requireProfile={true}>
-                <ClientDashboard />
-              </ProtectedRoute>
-            }
-          />
+            {/* ── Client dashboard ── */}
+            <Route path="/dashboard" element={<ClientDashboard />} />
 
-          {/* ── Protected: Organization dashboard (requires profileComplete) ── */}
-          <Route
-            path="/org-dashboard"
-            element={
-              <ProtectedRoute allowedRoles={['organization']} requireProfile={true}>
-                <OrgDashboard />
-              </ProtectedRoute>
-            }
-          />
+            {/* ── Organization dashboard ── */}
+            <Route path="/org-dashboard" element={<OrgDashboard />} />
 
-          {/* Fallback */}
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </BrowserRouter>
+            {/* Fallback */}
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </BrowserRouter>
     </AuthProvider>
     </ThemeProvider>
   );

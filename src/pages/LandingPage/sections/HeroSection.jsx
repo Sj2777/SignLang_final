@@ -12,8 +12,9 @@ const HeroImage = () => (
   </div>
 );
 
-export default function HeroSection() {
+export default function HeroSection({ onCTA }) {
   const navigate = useNavigate();
+  const handleCTA = onCTA || (() => navigate('/dashboard'));
 
   return (
     <section className={styles.hero} aria-labelledby="hero-heading">
@@ -44,7 +45,7 @@ export default function HeroSection() {
           </p>
 
           <div className={styles.ctas}>
-            <button onClick={() => navigate('/auth')} className={styles.btnPrimary} id="hero-cta-signup">
+            <button onClick={handleCTA} className={styles.btnPrimary} id="hero-cta-signup">
               Start Learning
             </button>
             <a href="#features" className={styles.btnGhost}>

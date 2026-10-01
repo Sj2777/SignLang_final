@@ -53,10 +53,10 @@ export default function ClientDashboard() {
         {/* Top bar */}
         <header className={styles.topBar}>
           <div>
-            <h1 className={styles.pageTitle}>Welcome back, {user?.name} 👋</h1>
+            <h1 className={styles.pageTitle}>Welcome back, {user?.name || 'Learner'} 👋</h1>
             <p className={styles.pageSub}>Keep up the great work on your sign language journey.</p>
           </div>
-          <div className={styles.avatar}>{user?.name?.slice(0,2).toUpperCase()}</div>
+          <div className={styles.avatar}>{(user?.name || 'Learner').slice(0, 2).toUpperCase()}</div>
         </header>
 
         {/* Stat cards */}
