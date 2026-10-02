@@ -41,7 +41,7 @@ async def predict_from_image(file: UploadFile = File(...)):
     """
     Upload an image (JPEG, PNG, WebP) to translate ISL hand sign to English and Marathi.
     """
-    if not file.content_type.startswith("image/"):
+    if file.content_type and not file.content_type.startswith("image/"):
         raise HTTPException(status_code=400, detail="File must be an image.")
         
     image_bytes = await file.read()
