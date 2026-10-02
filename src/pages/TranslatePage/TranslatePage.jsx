@@ -34,10 +34,21 @@ const DEFAULT_LABELS = {
   "Z": { "english": "Z", "marathi": "झेड", "phonetic": "Z", "example_mr": "झेंडा (Flag)" }
 };
 
+// 21 MediaPipe hand landmark skeletal connections
+const HAND_CONNECTIONS = [
+  [0, 1], [1, 2], [2, 3], [3, 4],       // Thumb
+  [0, 5], [5, 6], [6, 7], [7, 8],       // Index
+  [5, 9], [9, 10], [10, 11], [11, 12],  // Middle
+  [9, 13], [13, 14], [14, 15], [15, 16],// Ring
+  [13, 17], [17, 18], [18, 19], [19, 20],// Pinky
+  [0, 17]                               // Palm base
+];
+
 export default function TranslatePage() {
   const [mode, setMode] = useState('camera'); // 'camera' | 'upload'
   const [cameraActive, setCameraActive] = useState(false);
   const [autoDetect, setAutoDetect] = useState(true);
+  const [showSkeleton, setShowSkeleton] = useState(true);
   const [backendOnline, setBackendOnline] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
 
@@ -55,6 +66,7 @@ export default function TranslatePage() {
 
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
+  const overlayCanvasRef = useRef(null);
   const streamRef = useRef(null);
   const autoDetectRef = useRef(autoDetect);
   const isProcessingRef = useRef(false);
@@ -110,6 +122,10 @@ export default function TranslatePage() {
     if (videoRef.current) {
       videoRef.current.srcObject = null;
     }
+    if (overlayCanvasRef.current) {
+      const ctx = overlayCanvasRef.current.getContext('2d');
+      ctx.clearRect(0, 0, overlayCanvasRef.current.width, overlayCanvasRef.current.height);
+    }
     setCameraActive(false);
   }, []);
 
@@ -119,7 +135,53 @@ export default function TranslatePage() {
     };
   }, [stopCamera]);
 
-  // 3. Prediction API Caller
+  // 3. Draw Skeleton Overlay
+  const drawSkeleton = useCallback((landmarksPoints) => {
+    if (!overlayCanvasRef.current) return;
+    const canvas = overlayCanvasRef.current;
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    if (!showSkeleton || !landmarksPoints || landmarksPoints.length === 0) return;
+
+    landmarksPoints.forEach((hand) => {
+      // Map normalized coordinates (0 to 1) to canvas pixels.
+      // Mirror horizontally: (1 - x) to match mirrored video element
+      const pts = hand.map(([x, y]) => ({
+        x: (1 - x) * canvas.width,
+        y: y * canvas.height
+      }));
+
+      // 1. Draw connecting bones
+      ctx.strokeStyle = 'rgba(20, 184, 166, 0.9)'; // Teal accent
+      ctx.lineWidth = 3.5;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+
+      HAND_CONNECTIONS.forEach(([i, j]) => {
+        if (pts[i] && pts[j]) {
+          ctx.beginPath();
+          ctx.moveTo(pts[i].x, pts[i].y);
+          ctx.lineTo(pts[j].x, pts[j].y);
+          ctx.stroke();
+        }
+      });
+
+      // 2. Draw joint dots
+      pts.forEach((pt, idx) => {
+        ctx.beginPath();
+        const isTip = [0, 4, 8, 12, 16, 20].includes(idx);
+        ctx.arc(pt.x, pt.y, isTip ? 5.5 : 3.5, 0, Math.PI * 2);
+        ctx.fillStyle = isTip ? '#FF6B4A' : '#FFA07A'; // Terracotta
+        ctx.fill();
+        ctx.strokeStyle = '#FFFFFF';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+      });
+    });
+  }, [showSkeleton]);
+
+  // 4. Prediction API Caller
   const sendFrameToBackend = useCallback(async (blob) => {
     if (!backendOnline) return;
     setIsProcessing(true);
@@ -141,9 +203,11 @@ export default function TranslatePage() {
       if (data.success && data.detected && data.prediction) {
         setPrediction(data.prediction);
         setHandsDetected(data.hands_detected);
+        drawSkeleton(data.landmarks_points || []);
         setErrorMsg('');
       } else {
         setHandsDetected(data.hands_detected || 0);
+        drawSkeleton(data.landmarks_points || []);
         if (data.message) {
           setErrorMsg(data.message);
         }
@@ -153,7 +217,7 @@ export default function TranslatePage() {
     } finally {
       setIsProcessing(false);
     }
-  }, [backendOnline]);
+  }, [backendOnline, drawSkeleton]);
 
   // 4. Capture Frame from Video
   const captureFrame = useCallback(() => {
@@ -165,6 +229,14 @@ export default function TranslatePage() {
 
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
+
+    if (overlayCanvasRef.current) {
+      if (overlayCanvasRef.current.width !== video.videoWidth || overlayCanvasRef.current.height !== video.videoHeight) {
+        overlayCanvasRef.current.width = video.videoWidth;
+        overlayCanvasRef.current.height = video.videoHeight;
+      }
+    }
+
     const ctx = canvas.getContext('2d');
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
@@ -288,6 +360,11 @@ export default function TranslatePage() {
                       playsInline
                       muted
                     />
+                    <canvas
+                      ref={overlayCanvasRef}
+                      className={styles.overlayCanvas}
+                      style={{ display: cameraActive ? 'block' : 'none' }}
+                    />
                     {!cameraActive && (
                       <div className={styles.cameraPlaceholder}>
                         <div className={styles.placeholderIcon}>📹</div>
@@ -358,7 +435,21 @@ export default function TranslatePage() {
                             checked={autoDetect}
                             onChange={(e) => setAutoDetect(e.target.checked)}
                           />
-                          Auto-Detect (800ms)
+                          Auto (800ms)
+                        </label>
+                        <label className={styles.toggleLabel}>
+                          <input
+                            type="checkbox"
+                            checked={showSkeleton}
+                            onChange={(e) => {
+                              setShowSkeleton(e.target.checked);
+                              if (!e.target.checked && overlayCanvasRef.current) {
+                                const ctx = overlayCanvasRef.current.getContext('2d');
+                                ctx.clearRect(0, 0, overlayCanvasRef.current.width, overlayCanvasRef.current.height);
+                              }
+                            }}
+                          />
+                          🦴 Skeleton
                         </label>
                       </>
                     )}
