@@ -41,3 +41,27 @@ Thumbs.db
 # Vite / bundler caches
 .vite/
 .rolldown/
+
+# Python & Virtual Environments
+venv/
+.venv/
+env/
+ENV/
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyd
+
+# ML Datasets & Heavy Artifacts (do not commit raw images or huge numpy arrays)
+ml_backend/data/raw/
+ml_backend/data/processed/
+ml_backend/data/
+*.npy
+*.npz
+
+# Model weights & binary checkpoints
+ml_backend/models/*.joblib
+ml_backend/models/*.h5
+ml_backend/models/*.pt
+ml_backend/models/*.onnx
+!ml_backend/models/label_mapping.json
