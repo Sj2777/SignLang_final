@@ -47,12 +47,16 @@ class SignPredictor:
         results = self.hands.process(image_rgb)
         
         if not results.multi_hand_landmarks:
-            return None, 0
+            return None, 0, []
 
         feature_vector = np.zeros(126, dtype=np.float32)
         num_hands = len(results.multi_hand_landmarks[:2])
+        raw_points = []
 
         for h_idx, hand_landmarks in enumerate(results.multi_hand_landmarks[:2]):
+            hand_pts = [[round(float(lm.x), 4), round(float(lm.y), 4)] for lm in hand_landmarks.landmark]
+            raw_points.append(hand_pts)
+
             landmarks = np.array([[lm.x, lm.y, lm.z] for lm in hand_landmarks.landmark])
             
             wrist = landmarks[0]
@@ -65,7 +69,7 @@ class SignPredictor:
             start_idx = h_idx * 63
             feature_vector[start_idx : start_idx + 63] = normalized.flatten()
             
-        return feature_vector, num_hands
+        return feature_vector, num_hands, raw_points
 
     def predict_image(self, image_bytes: bytes):
         if self.model is None:
@@ -86,16 +90,17 @@ class SignPredictor:
                 "message": "Invalid image payload."
             }
 
-        features, num_hands = self.extract_features(image)
+        features, num_hands, raw_points = self.extract_features(image)
         if features is None:
             return {
                 "success": True,
                 "detected": False,
                 "hands_detected": 0,
+                "landmarks_points": [],
                 "message": "No hands detected in image."
             }
 
-        return self._predict_from_vector(features, num_hands)
+        return self._predict_from_vector(features, num_hands, raw_points)
 
     def predict_landmarks(self, landmarks_list):
         if self.model is None:
@@ -118,7 +123,7 @@ class SignPredictor:
         num_hands = 2 if np.any(features[63:]) else 1
         return self._predict_from_vector(features, num_hands)
 
-    def _predict_from_vector(self, features, num_hands):
+    def _predict_from_vector(self, features, num_hands, raw_points=None):
         probs = self.model.predict_proba([features])[0]
         max_idx = np.argmax(probs)
         letter = self.model.classes_[max_idx]
@@ -136,6 +141,7 @@ class SignPredictor:
             "success": True,
             "detected": True,
             "hands_detected": num_hands,
+            "landmarks_points": raw_points or [],
             "prediction": {
                 "letter": letter,
                 "english": meta.get("english", letter),

@@ -14,6 +14,7 @@ class PredictResponse(BaseModel):
     success: bool
     detected: bool
     hands_detected: int
+    landmarks_points: Optional[List[List[List[float]]]] = None
     prediction: Optional[PredictionResult] = None
     message: Optional[str] = None
 
