@@ -41,7 +41,7 @@ def train():
     y_pred = model.predict(X_test)
     acc = accuracy_score(y_test, y_pred)
     print(f"\n==================================================")
-    print(f"🎯 Model Accuracy on Test Set: {acc * 100:.2f}%")
+    print(f">> Model Accuracy on Test Set: {acc * 100:.2f}%")
     print(f"==================================================")
     print("\nClassification Report:\n")
     print(classification_report(y_test, y_pred))

@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 import styles from './HeroSection.module.css';
 
 const HeroImage = () => (
@@ -41,9 +42,9 @@ export default function HeroSection() {
           </p>
 
           <div className={styles.ctas}>
-            <a href="#account-types" className={styles.btnPrimary} id="hero-cta-signup">
-              Start Learning
-            </a>
+            <Link to="/translate" className={styles.btnPrimary} id="hero-cta-signup">
+              Try Live Translator →
+            </Link>
             <a href="#features" className={styles.btnGhost}>
               Discover features →
             </a>
