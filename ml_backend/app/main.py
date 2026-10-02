@@ -1,5 +1,7 @@
 # app/main.py
-from fastapi import FastAPI, File, UploadFile, HTTPException
+import json
+import base64
+from fastapi import FastAPI, File, UploadFile, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from .schemas import PredictResponse, LandmarksPredictRequest
 from .predictor import predictor
@@ -55,3 +57,30 @@ def predict_from_landmarks(payload: LandmarksPredictRequest):
     """
     result = predictor.predict_landmarks(payload.landmarks)
     return result
+
+@app.websocket("/ws/stream")
+async def websocket_stream(websocket: WebSocket):
+    """
+    WebSocket endpoint for real-time low-latency video streaming.
+    Accepts binary image frames (JPEG) and returns JSON predictions.
+    """
+    await websocket.accept()
+    try:
+        while True:
+            # Receive image frame as bytes
+            image_bytes = await websocket.receive_bytes()
+            
+            # Predict
+            result = predictor.predict_image(image_bytes)
+            
+            # Send result back
+            await websocket.send_json(result)
+            
+    except WebSocketDisconnect:
+        print("WebSocket client disconnected")
+    except Exception as e:
+        print(f"WebSocket error: {e}")
+        try:
+            await websocket.send_json({"error": str(e), "success": False})
+        except:
+            pass
