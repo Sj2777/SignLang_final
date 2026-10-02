@@ -219,6 +219,59 @@ export default function TranslatePage() {
     }
   }, [backendOnline, drawSkeleton]);
 
+  const WS_URL = 'ws://127.0.0.1:8000/ws/stream';
+  const wsRef = useRef(null);
+
+  // Initialize WebSocket connection
+  useEffect(() => {
+    if (cameraActive && backendOnline && autoDetect) {
+      const ws = new WebSocket(WS_URL);
+      
+      ws.onopen = () => {
+        console.log('WebSocket connected');
+      };
+      
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          if (data.success && data.detected && data.prediction) {
+            setPrediction(data.prediction);
+            setHandsDetected(data.hands_detected);
+            drawSkeleton(data.landmarks_points || []);
+            setErrorMsg('');
+          } else {
+            setHandsDetected(data.hands_detected || 0);
+            drawSkeleton(data.landmarks_points || []);
+            if (data.message) {
+              setErrorMsg(data.message);
+            }
+          }
+        } catch (err) {
+          console.error('Error parsing WebSocket message:', err);
+        } finally {
+          setIsProcessing(false);
+        }
+      };
+      
+      ws.onerror = (error) => {
+        console.error('WebSocket error:', error);
+        setIsProcessing(false);
+      };
+      
+      ws.onclose = () => {
+        console.log('WebSocket disconnected');
+        setIsProcessing(false);
+      };
+      
+      wsRef.current = ws;
+      
+      return () => {
+        ws.close();
+        wsRef.current = null;
+      };
+    }
+  }, [cameraActive, backendOnline, autoDetect, drawSkeleton]);
+
   // 4. Capture Frame from Video
   const captureFrame = useCallback(() => {
     if (!videoRef.current || !canvasRef.current || isProcessingRef.current) return;
@@ -242,7 +295,12 @@ export default function TranslatePage() {
 
     canvas.toBlob((blob) => {
       if (blob) {
-        sendFrameToBackend(blob);
+        if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+          setIsProcessing(true);
+          wsRef.current.send(blob);
+        } else {
+          sendFrameToBackend(blob);
+        }
       }
     }, 'image/jpeg', 0.85);
   }, [sendFrameToBackend]);
@@ -251,9 +309,10 @@ export default function TranslatePage() {
   useEffect(() => {
     let timer = null;
     if (cameraActive && autoDetect) {
+      // Send snapshot every 150ms over WebSocket (much faster than HTTP polling)
       timer = setInterval(() => {
         captureFrame();
-      }, 800); // Send snapshot every 800ms
+      }, wsRef.current && wsRef.current.readyState === WebSocket.OPEN ? 150 : 800); 
     }
     return () => {
       if (timer) clearInterval(timer);
