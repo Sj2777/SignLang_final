@@ -1,0 +1,24 @@
+:root {
+  color-scheme: light;
+  --primary: #315343;
+  --primary-dark: #233e32;
+  --accent: #b95735;
+  --neutral-0: #fffefa;
+  --neutral-100: #f7f5ef;
+  --neutral-200: #eae7de;
+  --neutral-400: #b5b3a9;
+  --neutral-600: #696e67;
+  --neutral-800: #28332d;
+  --danger: #762c22;
+  --danger-bg: #f2e4dc;
+  --space-1: 0.5rem;
+  --space-2: 1rem;
+  --space-3: 1.5rem;
+  --space-4: 2rem;
+  --space-5: 3rem;
+  --space-6: 4.5rem;
+  --radius-small: 8px;
+  --radius-large: 24px;
+  --font-display: "Fraunces", Georgia, serif;
+  --font-body: "DM Sans", sans-serif;
+}

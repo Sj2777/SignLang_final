@@ -1,0 +1,149 @@
+.button {
+  min-height: 48px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 0 19px;
+  border: 1px solid var(--primary);
+  border-radius: var(--radius-small);
+  color: white;
+  background: var(--primary);
+  font-size: 0.91rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.18s ease, border-color 0.18s ease, transform 0.18s ease;
+}
+
+.button:hover:not(:disabled) {
+  transform: translateY(-1px);
+  border-color: var(--primary-dark);
+  background: var(--primary-dark);
+}
+
+.button:disabled {
+  opacity: 0.58;
+  cursor: not-allowed;
+}
+
+.button-small {
+  min-height: 39px;
+  padding: 0 14px;
+  font-size: 0.84rem;
+}
+
+.button-outline {
+  color: var(--primary);
+  background: transparent;
+}
+
+.button-outline:hover:not(:disabled) {
+  color: white;
+}
+
+.button-quiet {
+  border-color: transparent;
+  color: var(--primary);
+  background: transparent;
+}
+
+.button-quiet:hover:not(:disabled) {
+  color: white;
+}
+
+.form-field {
+  display: grid;
+  gap: 7px;
+}
+
+.form-field label {
+  font-size: 0.81rem;
+  font-weight: 700;
+}
+
+.form-input {
+  width: 100%;
+  min-height: 44px;
+  padding: 0 11px;
+  border: 1px solid #cfcec4;
+  border-radius: var(--radius-small);
+  color: var(--neutral-800);
+  background: var(--neutral-0);
+  font-size: 0.9rem;
+}
+
+.form-input::placeholder {
+  color: var(--neutral-600);
+}
+
+.form-input[aria-invalid="true"] {
+  border-color: var(--danger);
+}
+
+.field-hint,
+.field-error {
+  font-size: 0.73rem;
+}
+
+.field-hint {
+  color: var(--neutral-600);
+}
+
+.field-error {
+  color: var(--danger);
+}
+
+.password-input-wrap {
+  position: relative;
+}
+
+.password-input-wrap .form-input {
+  padding-right: 48px;
+}
+
+.password-toggle {
+  position: absolute;
+  top: 50%;
+  right: 5px;
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  transform: translateY(-50%);
+  border: 0;
+  border-radius: var(--radius-small);
+  color: var(--neutral-600);
+  background: transparent;
+  cursor: pointer;
+}
+
+.password-toggle:hover {
+  color: var(--primary);
+  background: var(--neutral-100);
+}
+
+.form-alert {
+  padding: 11px 13px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-small);
+  font-size: 0.84rem;
+  line-height: 1.55;
+}
+
+.form-alert-error {
+  border-color: #e4c7bb;
+  color: var(--danger);
+  background: var(--danger-bg);
+}
+
+.form-alert-success {
+  border-color: #c7d5c8;
+  color: var(--primary-dark);
+  background: #e8eee5;
+}
+
+.form-alert-info {
+  border-color: var(--neutral-200);
+  color: var(--neutral-800);
+  background: var(--neutral-100);
+}
