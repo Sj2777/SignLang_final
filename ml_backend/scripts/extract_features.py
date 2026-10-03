@@ -5,15 +5,12 @@ import mediapipe as mp
 import numpy as np
 
 RAW_DATA_DIR = os.path.join(os.path.dirname(__file__), '..', 'data', 'raw')
-# If extracted inside an 'Indian' subfolder, auto-point to it
-if os.path.exists(os.path.join(RAW_DATA_DIR, 'Indian')):
-    RAW_DATA_DIR = os.path.join(RAW_DATA_DIR, 'Indian')
 
 PROCESSED_DIR = os.path.join(os.path.dirname(__file__), '..', 'data', 'processed')
 os.makedirs(PROCESSED_DIR, exist_ok=True)
 
-# 150 samples per letter provides 98%+ accuracy on normalized keypoints and processes in ~1-2 min
-MAX_SAMPLES_PER_CLASS = 150
+# Using 800 samples per letter provides vastly higher accuracy and robust generalization
+MAX_SAMPLES_PER_CLASS = 800
 
 mp_hands = mp.solutions.hands
 hands = mp_hands.Hands(
@@ -37,7 +34,10 @@ def extract_landmarks_from_image(image_bgr):
     if not results.multi_hand_landmarks:
         return None  # No hands detected
         
-    for h_idx, hand_landmarks in enumerate(results.multi_hand_landmarks[:2]):
+    # Sort hands from left to right based on the wrist's X coordinate
+    hand_landmarks_list = sorted(results.multi_hand_landmarks[:2], key=lambda hl: hl.landmark[0].x)
+        
+    for h_idx, hand_landmarks in enumerate(hand_landmarks_list):
         landmarks = np.array([[lm.x, lm.y, lm.z] for lm in hand_landmarks.landmark])
         
         # 1. Translate wrist (landmark 0) to origin (0, 0, 0)
@@ -58,13 +58,24 @@ def process_all_data():
     X = []
     y = []
     
-    # Target alphabets A-Z (and optionally digits 1-9)
-    classes = sorted([d for d in os.listdir(RAW_DATA_DIR) if os.path.isdir(os.path.join(RAW_DATA_DIR, d)) and d.isalpha()])
-    print(f"Dataset path: {RAW_DATA_DIR}")
-    print(f"Found {len(classes)} alphabet classes: {classes}")
+    # Gather classes from both data/raw and data/raw/Indian
+    classes_paths = {}
+    for base_dir in [RAW_DATA_DIR, os.path.join(RAW_DATA_DIR, 'Indian')]:
+        if not os.path.exists(base_dir):
+            continue
+        for d in os.listdir(base_dir):
+            full_path = os.path.join(base_dir, d)
+            # Skip the 'Indian' folder itself to prevent nested looping
+            if d == 'Indian':
+                continue
+            if os.path.isdir(full_path) and d.isalpha():
+                classes_paths[d] = full_path
+
+    classes = sorted(list(classes_paths.keys()))
+    print(f"Found {len(classes)} classes: {classes}")
     
     for label in classes:
-        folder = os.path.join(RAW_DATA_DIR, label)
+        folder = classes_paths[label]
         images = [f for f in os.listdir(folder) if f.lower().endswith(('.jpg', '.png', '.jpeg'))]
         if MAX_SAMPLES_PER_CLASS:
             images = images[:MAX_SAMPLES_PER_CLASS]
