@@ -167,3 +167,65 @@
   font-weight: 600;
   cursor: pointer;
 }
+
+.cardSelectionGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+  margin-bottom: 2rem;
+  width: 100%;
+}
+
+@media (max-width: 640px) {
+  .cardSelectionGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.selectionCard {
+  background: var(--color-bg);
+  border: 2px solid var(--color-border);
+  border-radius: 12px;
+  padding: 2rem 1.5rem;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+}
+
+.selectionCard:hover {
+  border-color: var(--color-primary);
+  transform: translateY(-2px);
+  box-shadow: 0 10px 20px rgba(0,0,0,0.05);
+}
+
+.iconWrap {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(99, 102, 241, 0.1);
+  color: var(--color-primary);
+}
+
+.iconWrapOrg {
+  background: rgba(244, 63, 94, 0.1);
+  color: var(--color-accent);
+}
+
+.selectionCard h3 {
+  font-size: 1.25rem;
+  margin: 0;
+  color: var(--color-text);
+}
+
+.selectionCard p {
+  font-size: 0.9rem;
+  color: var(--color-text-muted);
+  margin: 0;
+}
