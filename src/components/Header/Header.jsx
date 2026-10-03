@@ -39,6 +39,7 @@ export default function Header() {
           <a href="/#features" className={styles.navLink}>Features</a>
           <a href="/#account-types" className={styles.navLink}>Community</a>
           <a href="/#about" className={styles.navLink}>About</a>
+          <Link to="/speed-quiz" className={styles.navLink}>Games</Link>
         </nav>
 
         <div className={styles.actions}>
