@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useTheme } from '../../context/ThemeContext';
+import { useAuth } from '../../context/AuthContext';
 import styles from './Header.module.css';
 
 /* Minimalist Hand Logo SVG */
@@ -20,6 +21,7 @@ const Logo = () => (
 
 export default function Header() {
   const { theme, toggleTheme } = useTheme();
+  const { user } = useAuth();
   const [scrolled, setScrolled] = useState(false);
 
   useEffect(() => {
@@ -51,9 +53,15 @@ export default function Header() {
             {theme === 'light' ? '🌙' : '☀️'}
           </button>
           
-          <Link to="/translate" className={styles.btnPrimary} id="header-cta-btn">
-            Live Translator
-          </Link>
+          {user ? (
+            <Link to="/dashboard" className={styles.btnPrimary} id="header-cta-btn">
+              Dashboard
+            </Link>
+          ) : (
+            <Link to="/login" className={styles.btnPrimary} id="header-cta-btn">
+              Log In
+            </Link>
+          )}
         </div>
       </div>
     </header>
