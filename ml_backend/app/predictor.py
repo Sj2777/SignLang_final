@@ -52,8 +52,11 @@ class SignPredictor:
         feature_vector = np.zeros(126, dtype=np.float32)
         num_hands = len(results.multi_hand_landmarks[:2])
         raw_points = []
+        
+        # Sort hands from left to right based on the wrist's X coordinate
+        hand_landmarks_list = sorted(results.multi_hand_landmarks[:2], key=lambda hl: hl.landmark[0].x)
 
-        for h_idx, hand_landmarks in enumerate(results.multi_hand_landmarks[:2]):
+        for h_idx, hand_landmarks in enumerate(hand_landmarks_list):
             hand_pts = [[round(float(lm.x), 4), round(float(lm.y), 4)] for lm in hand_landmarks.landmark]
             raw_points.append(hand_pts)
 

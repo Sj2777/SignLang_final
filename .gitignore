@@ -60,8 +60,8 @@ ml_backend/data/
 *.npz
 
 # Model weights & binary checkpoints
-ml_backend/models/*.joblib
 ml_backend/models/*.h5
 ml_backend/models/*.pt
 ml_backend/models/*.onnx
 !ml_backend/models/label_mapping.json
+!ml_backend/models/isl_alphabet_model.joblib

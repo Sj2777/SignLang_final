@@ -9,8 +9,8 @@ RAW_DATA_DIR = os.path.join(os.path.dirname(__file__), '..', 'data', 'raw')
 PROCESSED_DIR = os.path.join(os.path.dirname(__file__), '..', 'data', 'processed')
 os.makedirs(PROCESSED_DIR, exist_ok=True)
 
-# 150 samples per letter provides 98%+ accuracy on normalized keypoints and processes in ~1-2 min
-MAX_SAMPLES_PER_CLASS = 150
+# Using 800 samples per letter provides vastly higher accuracy and robust generalization
+MAX_SAMPLES_PER_CLASS = 800
 
 mp_hands = mp.solutions.hands
 hands = mp_hands.Hands(
@@ -34,7 +34,10 @@ def extract_landmarks_from_image(image_bgr):
     if not results.multi_hand_landmarks:
         return None  # No hands detected
         
-    for h_idx, hand_landmarks in enumerate(results.multi_hand_landmarks[:2]):
+    # Sort hands from left to right based on the wrist's X coordinate
+    hand_landmarks_list = sorted(results.multi_hand_landmarks[:2], key=lambda hl: hl.landmark[0].x)
+        
+    for h_idx, hand_landmarks in enumerate(hand_landmarks_list):
         landmarks = np.array([[lm.x, lm.y, lm.z] for lm in hand_landmarks.landmark])
         
         # 1. Translate wrist (landmark 0) to origin (0, 0, 0)
