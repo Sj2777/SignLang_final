@@ -166,3 +166,9 @@
     height: 190px;
   }
 }
+.credit {
+  margin-top: var(--space-6);
+  font-size: 0.8rem;
+  text-align: center;
+  color: var(--color-text-tertiary);
+}

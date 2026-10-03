@@ -142,6 +142,10 @@ function SpeedQuiz() {
             <button className={styles.primary} onClick={startGame}>Play again</button>
           </section>
         )}
+        <p className={styles.credit}>
+          Sign images: Indian Sign Language Research and Training Centre
+          (ISLRTC), Government of India.
+        </p>
       </div>
     </main>
   );
