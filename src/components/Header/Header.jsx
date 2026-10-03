@@ -31,13 +31,13 @@ export default function Header() {
   }, []);
 
   return (
-    <header className={` `}>
-      <div className={`container `}>
+    <header className={`${styles.header} ${scrolled ? styles.scrolled : ''}`}>
+      <div className={`container ${styles.inner}`}>
         <Logo />
 
         <nav className={styles.nav} aria-label="Main navigation">
-          <Link to="/translate" className={styles.navLink}>ISL ? Text</Link>
-          <Link to="/reverse-translate" className={styles.navLink}>Text ? ISL</Link>
+          <Link to="/translate" className={styles.navLink}>ISL ➔ Text</Link>
+          <Link to="/reverse-translate" className={styles.navLink}>Text ➔ ISL</Link>
           <a href="/#features" className={styles.navLink}>Features</a>
           <a href="/#account-types" className={styles.navLink}>Community</a>
           <a href="/#about" className={styles.navLink}>About</a>
@@ -48,9 +48,9 @@ export default function Header() {
           <button 
             onClick={toggleTheme} 
             className={styles.themeToggle} 
-            aria-label={`Switch to  mode`}
+            aria-label={`Switch to ${theme === 'light' ? 'dark' : 'light'} mode`}
           >
-            {theme === 'light' ? '??' : '??'}
+            {theme === 'light' ? '🌙' : '☀️'}
           </button>
           
           {user ? (
