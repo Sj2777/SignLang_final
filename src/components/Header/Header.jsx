@@ -33,10 +33,11 @@ export default function Header() {
       <div className={`container ${styles.inner}`}>
         <Logo />
 
-        <nav className={styles.nav} aria-label="Main navigation">
-          <a href="#features" className={styles.navLink}>Features</a>
-          <a href="#account-types" className={styles.navLink}>Community</a>
-          <a href="#about" className={styles.navLink}>About</a>
+                <nav className={styles.nav} aria-label="Main navigation">
+          <Link to="/translate" className={styles.navLink}>AI Translator</Link>
+          <a href="/#features" className={styles.navLink}>Features</a>
+          <a href="/#account-types" className={styles.navLink}>Community</a>
+          <a href="/#about" className={styles.navLink}>About</a>
           <Link to="/speed-quiz" className={styles.navLink}>Games</Link>
         </nav>
 
@@ -49,9 +50,9 @@ export default function Header() {
             {theme === 'light' ? '🌙' : '☀️'}
           </button>
           
-          <a href="#features" className={styles.btnPrimary} id="header-cta-btn">
-            Get Started
-          </a>
+          <Link to="/translate" className={styles.btnPrimary} id="header-cta-btn">
+            Live Translator
+          </Link>
         </div>
       </div>
     </header>
