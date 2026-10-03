@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useTheme } from '../../context/ThemeContext';
+import { useAuth } from '../../context/AuthContext';
 import styles from './Header.module.css';
 
 /* Minimalist Hand Logo SVG */
@@ -20,6 +21,7 @@ const Logo = () => (
 
 export default function Header() {
   const { theme, toggleTheme } = useTheme();
+  const { user } = useAuth();
   const [scrolled, setScrolled] = useState(false);
 
   useEffect(() => {
@@ -29,13 +31,13 @@ export default function Header() {
   }, []);
 
   return (
-    <header className={`${styles.header} ${scrolled ? styles.scrolled : ''}`}>
-      <div className={`container ${styles.inner}`}>
+    <header className={` `}>
+      <div className={`container `}>
         <Logo />
 
         <nav className={styles.nav} aria-label="Main navigation">
-          <Link to="/translate" className={styles.navLink}>ISL ➔ Text</Link>
-          <Link to="/reverse-translate" className={styles.navLink}>Text ➔ ISL</Link>
+          <Link to="/translate" className={styles.navLink}>ISL ? Text</Link>
+          <Link to="/reverse-translate" className={styles.navLink}>Text ? ISL</Link>
           <a href="/#features" className={styles.navLink}>Features</a>
           <a href="/#account-types" className={styles.navLink}>Community</a>
           <a href="/#about" className={styles.navLink}>About</a>
@@ -46,14 +48,20 @@ export default function Header() {
           <button 
             onClick={toggleTheme} 
             className={styles.themeToggle} 
-            aria-label={`Switch to ${theme === 'light' ? 'dark' : 'light'} mode`}
+            aria-label={`Switch to  mode`}
           >
-            {theme === 'light' ? '🌙' : '☀️'}
+            {theme === 'light' ? '??' : '??'}
           </button>
           
-          <Link to="/translate" className={styles.btnPrimary} id="header-cta-btn">
-            Live Translator
-          </Link>
+          {user ? (
+            <Link to="/dashboard" className={styles.btnPrimary} id="header-cta-btn">
+              Dashboard
+            </Link>
+          ) : (
+            <Link to="/login" className={styles.btnPrimary} id="header-cta-btn">
+              Log In
+            </Link>
+          )}
         </div>
       </div>
     </header>
