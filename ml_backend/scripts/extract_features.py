@@ -5,9 +5,6 @@ import mediapipe as mp
 import numpy as np
 
 RAW_DATA_DIR = os.path.join(os.path.dirname(__file__), '..', 'data', 'raw')
-# If extracted inside an 'Indian' subfolder, auto-point to it
-if os.path.exists(os.path.join(RAW_DATA_DIR, 'Indian')):
-    RAW_DATA_DIR = os.path.join(RAW_DATA_DIR, 'Indian')
 
 PROCESSED_DIR = os.path.join(os.path.dirname(__file__), '..', 'data', 'processed')
 os.makedirs(PROCESSED_DIR, exist_ok=True)
@@ -58,13 +55,24 @@ def process_all_data():
     X = []
     y = []
     
-    # Target alphabets A-Z (and optionally digits 1-9)
-    classes = sorted([d for d in os.listdir(RAW_DATA_DIR) if os.path.isdir(os.path.join(RAW_DATA_DIR, d)) and d.isalpha()])
-    print(f"Dataset path: {RAW_DATA_DIR}")
-    print(f"Found {len(classes)} alphabet classes: {classes}")
+    # Gather classes from both data/raw and data/raw/Indian
+    classes_paths = {}
+    for base_dir in [RAW_DATA_DIR, os.path.join(RAW_DATA_DIR, 'Indian')]:
+        if not os.path.exists(base_dir):
+            continue
+        for d in os.listdir(base_dir):
+            full_path = os.path.join(base_dir, d)
+            # Skip the 'Indian' folder itself to prevent nested looping
+            if d == 'Indian':
+                continue
+            if os.path.isdir(full_path) and d.isalpha():
+                classes_paths[d] = full_path
+
+    classes = sorted(list(classes_paths.keys()))
+    print(f"Found {len(classes)} classes: {classes}")
     
     for label in classes:
-        folder = os.path.join(RAW_DATA_DIR, label)
+        folder = classes_paths[label]
         images = [f for f in os.listdir(folder) if f.lower().endswith(('.jpg', '.png', '.jpeg'))]
         if MAX_SAMPLES_PER_CLASS:
             images = images[:MAX_SAMPLES_PER_CLASS]
