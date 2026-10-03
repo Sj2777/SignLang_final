@@ -130,3 +130,40 @@
 .toggleBtn:hover {
   text-decoration: underline;
 }
+
+.accountTypeSelector {
+  display: flex;
+  gap: 0.5rem;
+  background: var(--color-bg);
+  padding: 0.5rem;
+  border-radius: 8px;
+  border: 1px solid var(--color-border);
+  margin-bottom: 0.5rem;
+}
+
+.typeBtn {
+  flex: 1;
+  padding: 0.5rem;
+  border: none;
+  background: transparent;
+  border-radius: 6px;
+  color: var(--color-text-muted);
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.typeBtn:hover {
+  color: var(--color-text);
+}
+
+.typeBtnActive {
+  flex: 1;
+  padding: 0.5rem;
+  border: none;
+  background: var(--color-primary);
+  color: white;
+  border-radius: 6px;
+  font-weight: 600;
+  cursor: pointer;
+}
