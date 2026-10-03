@@ -1,9 +1,9 @@
-.section {
+﻿.section {
   padding: var(--space-24) 0;
   background-color: var(--color-bg);
 }
 
-/* ── Section header ── */
+/* Section header */
 .header {
   text-align: center;
   margin-bottom: var(--space-16);
@@ -36,14 +36,14 @@
   line-height: 1.6;
 }
 
-/* ── Card grid ── */
+/* Card grid */
 .grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(3, 1fr);
   gap: var(--space-6);
 }
 
-/* ── Card ── */
+/* Card */
 .card {
   background: rgba(var(--color-surface-rgb, 255, 255, 255), 0.8);
   backdrop-filter: blur(8px);
@@ -55,29 +55,13 @@
   transition: all var(--transition-base);
   display: flex;
   flex-direction: column;
-  box-shadow: var(--shadow-sm);
-}
-
-/* Solid shadow effect for brutalist/editorial feel */
-.card::after {
-  content: '';
-  position: absolute;
-  top: 6px; left: 6px;
-  right: -6px; bottom: -6px;
-  background-color: var(--card-color);
-  border-radius: var(--radius-md);
-  z-index: -1;
-  opacity: 0;
-  transition: opacity var(--transition-fast), transform var(--transition-base);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.03);
 }
 
 .card:hover {
-  transform: translate(-4px, -4px);
+  transform: translateY(-4px);
+  box-shadow: 0 12px 24px rgba(0,0,0,0.08);
   border-color: var(--card-color);
-}
-.card:hover::after {
-  opacity: 1;
-  transform: translate(4px, 4px);
 }
 
 .cardHeader {
@@ -133,15 +117,11 @@
   flex: 1;
 }
 
-/* ── Responsive ── */
+/* Responsive */
 @media (max-width: 1100px) {
-  .grid { grid-template-columns: repeat(3, 1fr); }
-}
-@media (max-width: 860px) {
   .grid { grid-template-columns: repeat(2, 1fr); }
 }
-@media (max-width: 560px) {
+@media (max-width: 768px) {
   .grid { grid-template-columns: 1fr; }
-  .card:hover { transform: translate(-2px, -2px); }
-  .card:hover::after { transform: translate(2px, 2px); }
+  .card:hover { transform: translateY(-2px); }
 }
