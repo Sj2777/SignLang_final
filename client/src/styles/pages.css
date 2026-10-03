@@ -1,4 +1,5 @@
 .site-header { height: 78px; border-bottom: 1px solid var(--neutral-200); background: rgba(247, 245, 239, .96); }
+.offline-banner { padding: 10px 16px; color: var(--primary-dark); background: #e8eee5; font-size: .82rem; text-align: center; }
 .session-alert { display: flex; justify-content: center; align-items: center; flex-wrap: wrap; gap: 8px 14px; padding: 10px 16px; color: #762c22; background: #f2e4dc; font-size: .82rem; }
 .session-alert button { padding: 3px 0; border: 0; border-bottom: 1px solid currentColor; color: inherit; background: transparent; font-weight: 700; cursor: pointer; }
 .header-inner { width: min(1140px, calc(100% - 48px)); height: 100%; margin: auto; display: flex; align-items: center; justify-content: space-between; }

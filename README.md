@@ -30,6 +30,12 @@ A small MERN-stack community for people beginning to learn American Sign Languag
 
 The Vite development server runs on `http://localhost:5173` and proxies `/api` requests to the API on port 5000. Set `CLIENT_ORIGIN` to the frontend origin. In production, serve the frontend over HTTPS and set `NODE_ENV=production` so the session cookie is secure.
 
+## Offline access
+
+The production client registers a service worker that caches the app shell and built assets, so previously loaded app and authentication routes can open without an internet connection. After a successful sign-in or registration, the client stores the user's profile in IndexedDB for offline dashboard access. On reconnection it calls `/api/auth/me` to revalidate the server-managed session and clears the saved profile if the session is no longer valid. Login and registration still require a network connection and show an offline message if submitted without one.
+
+The JWT remains in the server's `httpOnly` cookie and is not copied into IndexedDB; JavaScript cannot read that cookie by design. Offline access is therefore a cached profile view, not an offline-authenticated API session. Service workers require HTTPS in production (localhost is treated as secure for development).
+
 ## Project structure
 
 ```text
