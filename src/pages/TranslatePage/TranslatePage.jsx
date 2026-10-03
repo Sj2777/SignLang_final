@@ -31,7 +31,14 @@ const DEFAULT_LABELS = {
   "W": { "english": "W", "marathi": "डब्ल्यू", "phonetic": "W", "example_mr": "वार (Day)" },
   "X": { "english": "X", "marathi": "एक्स", "phonetic": "X", "example_mr": "क्ष-किरण (X-Ray)" },
   "Y": { "english": "Y", "marathi": "वाय", "phonetic": "Y", "example_mr": "योग (Yoga)" },
-  "Z": { "english": "Z", "marathi": "झेड", "phonetic": "Z", "example_mr": "झेंडा (Flag)" }
+  "Z": { "english": "Z", "marathi": "झेड", "phonetic": "Z", "example_mr": "झेंडा (Flag)" },
+  "Namaskar": { "english": "Namaste/Hello", "marathi": "नमस्कार", "phonetic": "Namaskar", "example_mr": "नमस्कार (Hello)" },
+  "Madat": { "english": "Help", "marathi": "मदत", "phonetic": "Madat", "example_mr": "मदत करा (Help me)" },
+  "Dawakhana": { "english": "Hospital", "marathi": "दवाखाना", "phonetic": "Dawakhana", "example_mr": "दवाखान्यात जा (Go to hospital)" },
+  "Police": { "english": "Police", "marathi": "पोलीस", "phonetic": "Police", "example_mr": "पोलीस स्टेशन (Police station)" },
+  "Pune": { "english": "Pune", "marathi": "पुणे", "phonetic": "Pune", "example_mr": "मी पुण्यात आहे (I am in Pune)" },
+  "Pani": { "english": "Water", "marathi": "पाणी", "phonetic": "Paani", "example_mr": "मला पाणी द्या (Give me water)" },
+  "Jevan": { "english": "Food/Meal", "marathi": "जेवण", "phonetic": "Jevan", "example_mr": "जेवण तयार आहे (Food is ready)" }
 };
 
 // 21 MediaPipe hand landmark skeletal connections
@@ -649,9 +656,9 @@ export default function TranslatePage() {
           {/* ── Collapsible ISL Reference Guide ── */}
           <section className={styles.guideSection}>
             <div>
-              <h2 className={styles.guideHeading}>ISL Alphabet Reference (A–Z)</h2>
+              <h2 className={styles.guideHeading}>ISL Reference (Alphabets & Words)</h2>
               <p style={{ color: 'var(--color-text-secondary)', fontSize: '0.95rem' }}>
-                Standard two-handed Indian Sign Language letters and their Marathi (मराठी) pronunciation:
+                Standard two-handed Indian Sign Language letters and Pune-specific words with Marathi (मराठी) pronunciation:
               </p>
             </div>
 
