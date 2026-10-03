@@ -87,11 +87,11 @@ export default function LoginPage() {
 
   return (
     <div className={styles.authContainer}>
-      <Link to="/" className={styles.backLink}>? Back to Home</Link>
+      <Link to="/" className={styles.backLink}>‚Üê Back to Home</Link>
       
       {/* We make the card wider if showing selection cards */}
       <div className={styles.authCard} style={showSelectionCards ? { maxWidth: '700px' } : {}}>
-        <h2>{isSignUp ? (accountType ? \Sign Up as \\ : 'Join the Community') : 'Welcome Back'}</h2>
+        <h2>{isSignUp ? (accountType ? `Sign Up as ${accountType === 'learner' ? 'Learner' : 'Organization'}` : 'Join the Community') : 'Welcome Back'}</h2>
         
         <p className={styles.subtitle}>
           {isSignUp 
@@ -129,7 +129,7 @@ export default function LoginPage() {
                 onClick={() => setAccountType(null)} 
                 style={{ alignSelf: 'flex-start', background: 'none', border: 'none', color: 'var(--color-text-muted)', cursor: 'pointer', marginBottom: '1rem', padding: 0 }}
               >
-                ? Change Account Type
+                ‚Üê Change Account Type
               </button>
             )}
 
@@ -193,7 +193,7 @@ export default function LoginPage() {
                 required 
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="ïïïïïïïï"
+                placeholder="‚Ä¢‚Ä¢‚Ä¢‚Ä¢‚Ä¢‚Ä¢‚Ä¢‚Ä¢"
               />
             </div>
 
