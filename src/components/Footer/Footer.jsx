@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 import styles from './Footer.module.css';
 
 export default function Footer() {
@@ -26,12 +27,9 @@ export default function Footer() {
             AI-powered sign language technology.
           </p>
           <div className={styles.socials} aria-label="Social media links">
-            {['Twitter', 'LinkedIn', 'GitHub'].map(s => (
-              <a key={s} href="#" className={styles.socialLink}
-                 aria-label={s} rel="noopener noreferrer">
-                {s[0]}
-              </a>
-            ))}
+            <a href="https://github.com/Sj2777/SignLang_final" target="_blank" rel="noopener noreferrer" className={styles.socialLink} aria-label="GitHub">
+              G
+            </a>
           </div>
         </div>
 
@@ -39,21 +37,21 @@ export default function Footer() {
         <div className={styles.links}>
           <div className={styles.linkGroup}>
             <h3 className={styles.linkHeading}>Platform</h3>
-            <a href="#features" className={styles.link}>Features</a>
-            <a href="#" className={styles.link}>Pricing</a>
-            <a href="#" className={styles.link}>Changelog</a>
+            <a href="/#features" className={styles.link}>Features</a>
+            <Link to="/translate" className={styles.link}>Live Translator</Link>
+            <Link to="/speed-quiz" className={styles.link}>Speed Quiz</Link>
           </div>
           <div className={styles.linkGroup}>
-            <h3 className={styles.linkHeading}>Company</h3>
-            <a href="#" className={styles.link}>About Us</a>
-            <a href="#" className={styles.link}>Contact</a>
-            <a href="#" className={styles.link}>Blog</a>
+            <h3 className={styles.linkHeading}>Community</h3>
+            <a href="/#account-types" className={styles.link}>For Learners</a>
+            <a href="/#account-types" className={styles.link}>For Organizations</a>
+            <a href="https://github.com/Sj2777/SignLang_final" target="_blank" rel="noopener noreferrer" className={styles.link}>GitHub Repo</a>
           </div>
           <div className={styles.linkGroup}>
             <h3 className={styles.linkHeading}>Legal</h3>
-            <a href="#" className={styles.link}>Privacy Policy</a>
-            <a href="#" className={styles.link}>Terms of Service</a>
-            <a href="#" className={styles.link}>Cookie Policy</a>
+            <a href="/" className={styles.link}>Privacy Policy</a>
+            <a href="/" className={styles.link}>Terms of Service</a>
+            <a href="/" className={styles.link}>Cookie Policy</a>
           </div>
         </div>
       </div>

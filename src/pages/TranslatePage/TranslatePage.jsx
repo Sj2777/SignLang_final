@@ -3,7 +3,7 @@ import Header from '../../components/Header/Header';
 import Footer from '../../components/Footer/Footer';
 import styles from './TranslatePage.module.css';
 
-const API_BASE = 'http://127.0.0.1:8000';
+const API_BASE = import.meta.env.VITE_API_BASE || 'http://127.0.0.1:8000';
 
 const DEFAULT_LABELS = {
   "A": { "english": "A", "marathi": "ए", "phonetic": "Ae", "example_mr": "एक (One)" },
@@ -226,7 +226,7 @@ export default function TranslatePage() {
     }
   }, [backendOnline, drawSkeleton]);
 
-  const WS_URL = 'ws://127.0.0.1:8000/ws/stream';
+  const WS_URL = import.meta.env.VITE_WS_URL || 'ws://127.0.0.1:8000/ws/stream';
   const wsRef = useRef(null);
 
   // Initialize WebSocket connection
