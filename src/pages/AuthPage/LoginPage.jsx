@@ -19,7 +19,7 @@ const GroupSVG = () => (
 );
 
 export default function LoginPage() {
-  const [isSignUp, setIsSignUp] = useState(false);
+  const [isSignUp, setIsSignUp] = useState(true);
   const [accountType, setAccountType] = useState(null); // null means hasn't chosen yet
   
   // Form fields
