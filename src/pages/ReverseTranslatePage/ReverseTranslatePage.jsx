@@ -3,6 +3,11 @@ import Header from '../../components/Header/Header';
 import Footer from '../../components/Footer/Footer';
 import styles from './ReverseTranslatePage.module.css';
 
+const getSignPlaceholder = (label) => {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="300" height="300" viewBox="0 0 300 300"><rect width="300" height="300" fill="#F3EFE6"/><text x="150" y="150" fill="#0F172A" font-family="sans-serif" font-size="64" font-weight="600" text-anchor="middle" dominant-baseline="central">${label}</text></svg>`;
+  return `data:image/svg+xml,${encodeURIComponent(svg)}`;
+};
+
 export default function ReverseTranslatePage() {
   const [inputText, setInputText] = useState('');
   const [isPlaying, setIsPlaying] = useState(false);
@@ -189,10 +194,14 @@ export default function ReverseTranslatePage() {
                     ) : (
                       <div className={styles.signDisplay}>
                         <img 
-                          src={`/assets/signs/${tokens[currentSignIndex]}.jpg`} 
+                          src={`/assets/signs/${tokens[currentSignIndex].toLowerCase()}.png`}
                           alt={`Sign for ${tokens[currentSignIndex]}`} 
                           className={styles.signImage}
-                          onError={(e) => { e.target.src = 'https://via.placeholder.com/300?text=' + tokens[currentSignIndex]; }}
+                          onError={(e) => {
+                            if (e.currentTarget.dataset.fallback) return;
+                            e.currentTarget.dataset.fallback = 'true';
+                            e.currentTarget.src = getSignPlaceholder(tokens[currentSignIndex]);
+                          }}
                         />
                         <div className={styles.signLabel}>{tokens[currentSignIndex]}</div>
                       </div>

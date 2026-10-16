@@ -1,9 +1,12 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import Header from '../../components/Header/Header';
 import Footer from '../../components/Footer/Footer';
+import { loadLocalSignInference } from '../../lib/localSignInference';
+import { extractFeatures } from '../../lib/signFeatures';
 import styles from './TranslatePage.module.css';
 
-const API_BASE = import.meta.env.VITE_API_BASE || 'http://127.0.0.1:8000';
+const API_BASE = import.meta.env.VITE_API_BASE?.replace(/\/$/, '') || '';
+const WS_URL = import.meta.env.VITE_WS_URL || '';
 
 const DEFAULT_LABELS = {
   "A": { "english": "A", "marathi": "ए", "phonetic": "Ae", "example_mr": "एक (One)" },
@@ -58,6 +61,9 @@ export default function TranslatePage() {
   const [showSkeleton, setShowSkeleton] = useState(true);
   const [backendOnline, setBackendOnline] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [modelLoading, setModelLoading] = useState(false);
+  const [modelProgress, setModelProgress] = useState('');
+  const [localReady, setLocalReady] = useState(false);
 
   // Prediction state
   const [prediction, setPrediction] = useState(null);
@@ -77,12 +83,15 @@ export default function TranslatePage() {
   const streamRef = useRef(null);
   const autoDetectRef = useRef(autoDetect);
   const isProcessingRef = useRef(false);
+  const localProviderRef = useRef(null);
+  const wsRef = useRef(null);
 
   autoDetectRef.current = autoDetect;
   isProcessingRef.current = isProcessing;
 
   // 1. Check Backend Health
   const checkHealth = useCallback(async () => {
+    if (!API_BASE) return;
     try {
       const res = await fetch(`${API_BASE}/health`, { method: 'GET' });
       if (res.ok) {
@@ -97,13 +106,38 @@ export default function TranslatePage() {
   }, []);
 
   useEffect(() => {
+    if (!API_BASE) return undefined;
     checkHealth();
     const interval = setInterval(checkHealth, 5000);
     return () => clearInterval(interval);
   }, [checkHealth]);
 
+  const ensureLocalProvider = useCallback(async () => {
+    if (localProviderRef.current) return localProviderRef.current;
+    setModelLoading(true);
+    setModelProgress('Downloading offline model…');
+    try {
+      const provider = await loadLocalSignInference(setModelProgress);
+      localProviderRef.current = provider;
+      setLocalReady(true);
+      return provider;
+    } finally {
+      setModelLoading(false);
+    }
+  }, []);
+
   // 2. Camera Controls
   const startCamera = async () => {
+    if (!API_BASE || !backendOnline) {
+      try {
+        await ensureLocalProvider();
+      } catch (error) {
+        console.error('Unable to prepare local translation:', error);
+        setErrorMsg(`Unable to prepare offline translation: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        return;
+      }
+    }
+
     try {
       setErrorMsg('');
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -117,7 +151,9 @@ export default function TranslatePage() {
       setCameraActive(true);
     } catch (err) {
       console.error('Camera access failed:', err);
-      setErrorMsg('Unable to access camera. Please allow camera permissions in your browser.');
+      setErrorMsg(err instanceof Error && modelLoading
+        ? `Unable to prepare offline translation: ${err.message}`
+        : 'Unable to access camera. Please allow camera permissions in your browser.');
     }
   };
 
@@ -188,143 +224,189 @@ export default function TranslatePage() {
     });
   }, [showSkeleton]);
 
-  // 4. Prediction API Caller
+  const applyServerResult = useCallback((data) => {
+    setHandsDetected(data.hands_detected || 0);
+    drawSkeleton(data.landmarks_points || []);
+    if (data.success && data.detected && data.prediction) {
+      setPrediction(data.prediction);
+      setErrorMsg('');
+    } else if (data.message || data.error) {
+      setErrorMsg(data.message || data.error);
+    }
+  }, [drawSkeleton]);
+
+  const runLocalInference = useCallback(async (source, isVideo) => {
+    const provider = await ensureLocalProvider();
+    let result;
+    if (isVideo) {
+      result = provider.detector.detectForVideo(source, performance.now());
+    } else {
+      await provider.detector.setOptions({ runningMode: 'IMAGE' });
+      try {
+        result = provider.detector.detect(source);
+      } finally {
+        await provider.detector.setOptions({ runningMode: 'VIDEO' });
+      }
+    }
+
+    const { features, numHands, rawPoints } = extractFeatures(result.landmarks);
+    setHandsDetected(numHands);
+    drawSkeleton(rawPoints);
+    if (!features) {
+      setErrorMsg('No hands detected in image.');
+      return;
+    }
+
+    const localPrediction = provider.predict(features);
+    const mapping = provider.labels[localPrediction.letter] || {};
+    setPrediction({
+      ...localPrediction,
+      english: mapping.english || localPrediction.letter,
+      marathi: mapping.marathi || localPrediction.letter,
+      phonetic: mapping.phonetic || localPrediction.letter,
+      example_mr: mapping.example_mr || '',
+    });
+    setErrorMsg('');
+  }, [drawSkeleton, ensureLocalProvider]);
+
+  // Uses the configured server when healthy; otherwise inference runs locally.
   const sendFrameToBackend = useCallback(async (blob) => {
-    if (!backendOnline) return;
+    if (isProcessingRef.current) return;
+    isProcessingRef.current = true;
     setIsProcessing(true);
 
     try {
-      const formData = new FormData();
-      formData.append('file', blob, 'frame.jpg');
-
-      const res = await fetch(`${API_BASE}/predict/image`, {
-        method: 'POST',
-        body: formData
-      });
-
-      if (!res.ok) {
-        throw new Error(`Server returned ${res.status}`);
-      }
-
-      const data = await res.json();
-      if (data.success && data.detected && data.prediction) {
-        setPrediction(data.prediction);
-        setHandsDetected(data.hands_detected);
-        drawSkeleton(data.landmarks_points || []);
-        setErrorMsg('');
-      } else {
-        setHandsDetected(data.hands_detected || 0);
-        drawSkeleton(data.landmarks_points || []);
-        if (data.message) {
-          setErrorMsg(data.message);
+      if (API_BASE && backendOnline) {
+        try {
+          const formData = new FormData();
+          formData.append('file', blob, 'frame.jpg');
+          const response = await fetch(`${API_BASE}/predict/image`, {
+            method: 'POST',
+            body: formData,
+          });
+          if (!response.ok) {
+            throw new Error(`Server returned ${response.status}`);
+          }
+          applyServerResult(await response.json());
+          return;
+        } catch (serverError) {
+          console.error('Server inference failed; switching to local inference:', serverError);
+          setBackendOnline(false);
         }
       }
-    } catch (err) {
-      console.error('Inference error:', err);
+
+      const image = await createImageBitmap(blob);
+      try {
+        await runLocalInference(image, false);
+      } finally {
+        image.close();
+      }
+    } catch (error) {
+      console.error('Inference error:', error);
+      setErrorMsg(`Translation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
+      isProcessingRef.current = false;
       setIsProcessing(false);
     }
-  }, [backendOnline, drawSkeleton]);
+  }, [applyServerResult, backendOnline, runLocalInference]);
 
-  const WS_URL = import.meta.env.VITE_WS_URL || 'ws://127.0.0.1:8000/ws/stream';
-  const wsRef = useRef(null);
-
-  // Initialize WebSocket connection
   useEffect(() => {
-    if (cameraActive && backendOnline && autoDetect) {
-      const ws = new WebSocket(WS_URL);
-      
-      ws.onopen = () => {
-        console.log('WebSocket connected');
-      };
-      
-      ws.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data);
-          if (data.success && data.detected && data.prediction) {
-            setPrediction(data.prediction);
-            setHandsDetected(data.hands_detected);
-            drawSkeleton(data.landmarks_points || []);
-            setErrorMsg('');
-          } else {
-            setHandsDetected(data.hands_detected || 0);
-            drawSkeleton(data.landmarks_points || []);
-            if (data.message) {
-              setErrorMsg(data.message);
-            }
-          }
-        } catch (err) {
-          console.error('Error parsing WebSocket message:', err);
-        } finally {
-          setIsProcessing(false);
-        }
-      };
-      
-      ws.onerror = (error) => {
-        console.error('WebSocket error:', error);
-        setIsProcessing(false);
-      };
-      
-      ws.onclose = () => {
-        console.log('WebSocket disconnected');
-        setIsProcessing(false);
-      };
-      
-      wsRef.current = ws;
-      
-      return () => {
-        ws.close();
-        wsRef.current = null;
-      };
+    if (!cameraActive || !API_BASE || !backendOnline || !autoDetect || !WS_URL) {
+      return undefined;
     }
-  }, [cameraActive, backendOnline, autoDetect, drawSkeleton]);
 
-  // 4. Capture Frame from Video
-  const captureFrame = useCallback(() => {
-    if (!videoRef.current || !canvasRef.current || isProcessingRef.current) return;
+    const ws = new WebSocket(WS_URL);
+    ws.onopen = () => console.log('WebSocket connected');
+    ws.onmessage = (event) => {
+      try {
+        applyServerResult(JSON.parse(event.data));
+      } catch (error) {
+        console.error('Error parsing WebSocket message:', error);
+        setErrorMsg('The translation server returned an invalid response.');
+      } finally {
+        isProcessingRef.current = false;
+        setIsProcessing(false);
+      }
+    };
+    ws.onerror = (error) => {
+      console.error('WebSocket error:', error);
+      isProcessingRef.current = false;
+      setIsProcessing(false);
+    };
+    ws.onclose = () => {
+      isProcessingRef.current = false;
+      setIsProcessing(false);
+    };
+    wsRef.current = ws;
 
+    return () => {
+      ws.close();
+      if (wsRef.current === ws) wsRef.current = null;
+    };
+  }, [applyServerResult, autoDetect, backendOnline, cameraActive]);
+
+  // 4. Capture a frame locally or send it to the optional Python backend.
+  const captureFrame = useCallback(async () => {
     const video = videoRef.current;
-    const canvas = canvasRef.current;
-    if (video.videoWidth === 0 || video.videoHeight === 0) return;
+    if (!video || isProcessingRef.current || video.videoWidth === 0 || video.videoHeight === 0) return;
 
+    if (!API_BASE || !backendOnline) {
+      isProcessingRef.current = true;
+      setIsProcessing(true);
+      try {
+        await runLocalInference(video, true);
+      } catch (error) {
+        console.error('Local inference failed:', error);
+        setErrorMsg(`Translation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      } finally {
+        isProcessingRef.current = false;
+        setIsProcessing(false);
+      }
+      return;
+    }
+
+    const canvas = canvasRef.current;
+    if (!canvas) return;
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
-
     if (overlayCanvasRef.current) {
-      if (overlayCanvasRef.current.width !== video.videoWidth || overlayCanvasRef.current.height !== video.videoHeight) {
-        overlayCanvasRef.current.width = video.videoWidth;
-        overlayCanvasRef.current.height = video.videoHeight;
-      }
+      overlayCanvasRef.current.width = video.videoWidth;
+      overlayCanvasRef.current.height = video.videoHeight;
     }
+    canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
 
-    const ctx = canvas.getContext('2d');
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
+    isProcessingRef.current = true;
+    setIsProcessing(true);
     canvas.toBlob((blob) => {
-      if (blob) {
-        if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-          setIsProcessing(true);
-          wsRef.current.send(blob);
-        } else {
-          sendFrameToBackend(blob);
-        }
+      if (!blob) {
+        isProcessingRef.current = false;
+        setIsProcessing(false);
+      } else if (wsRef.current?.readyState === WebSocket.OPEN) {
+        wsRef.current.send(blob);
+      } else {
+        isProcessingRef.current = false;
+        setIsProcessing(false);
+        void sendFrameToBackend(blob);
       }
     }, 'image/jpeg', 0.85);
-  }, [sendFrameToBackend]);
+  }, [backendOnline, runLocalInference, sendFrameToBackend]);
 
-  // Auto-detect loop
+  // Keep camera inference responsive without running detection on every paint.
   useEffect(() => {
-    let timer = null;
-    if (cameraActive && autoDetect) {
-      // Send snapshot every 150ms over WebSocket (much faster than HTTP polling)
-      timer = setInterval(() => {
-        captureFrame();
-      }, wsRef.current && wsRef.current.readyState === WebSocket.OPEN ? 150 : 800); 
-    }
-    return () => {
-      if (timer) clearInterval(timer);
+    if (!cameraActive || !autoDetect) return undefined;
+    let animationFrame = 0;
+    let lastRun = 0;
+    const interval = !API_BASE || !backendOnline ? 120 : (WS_URL ? 150 : 800);
+    const detectFrame = (timestamp) => {
+      if (timestamp - lastRun >= interval) {
+        lastRun = timestamp;
+        void captureFrame();
+      }
+      animationFrame = requestAnimationFrame(detectFrame);
     };
-  }, [cameraActive, autoDetect, captureFrame]);
+    animationFrame = requestAnimationFrame(detectFrame);
+    return () => cancelAnimationFrame(animationFrame);
+  }, [autoDetect, backendOnline, cameraActive, captureFrame]);
 
   // 5. File Upload Handler
   const handleFileChange = (e) => {
@@ -385,15 +467,26 @@ export default function TranslatePage() {
           </div>
 
           {/* Backend Status Banner */}
-          <div className={`${styles.statusBanner} ${backendOnline ? styles.statusOnline : styles.statusOffline}`}>
+          <div className={`${styles.statusBanner} ${backendOnline || localReady || !API_BASE ? styles.statusOnline : styles.statusOffline}`}>
             <span>
-              {backendOnline 
-                ? '🟢 HandSpeak AI Engine Online — Ready for live translation' 
-                : '🔴 AI Service Offline — Start FastAPI backend: `uvicorn app.main:app --reload --port 8000`'}
+              {backendOnline
+                ? '🟢 HandSpeak AI Engine Online — Using server translation'
+                : localReady
+                  ? '🟢 On-device translation — Ready for offline use'
+                  : API_BASE
+                    ? '🟠 Translation server unavailable — On-device translation is available'
+                    : '🟢 On-device translation — The offline model loads when you start translating'}
+              {modelLoading && (
+                <span className={styles.modelProgress} role="status" aria-live="polite">
+                  {modelProgress || 'Downloading offline model…'}
+                </span>
+              )}
             </span>
-            <button className={styles.btnSecondary} onClick={checkHealth} style={{ padding: '0.35rem 0.8rem', fontSize: '0.8rem' }}>
-              Refresh Status
-            </button>
+            {API_BASE && (
+              <button className={styles.btnSecondary} onClick={checkHealth} style={{ padding: '0.35rem 0.8rem', fontSize: '0.8rem' }}>
+                Refresh Status
+              </button>
+            )}
           </div>
 
           {/* Workspace */}
@@ -480,7 +573,7 @@ export default function TranslatePage() {
                 {mode === 'camera' ? (
                   <>
                     {!cameraActive ? (
-                      <button className={styles.btnPrimary} onClick={startCamera} disabled={!backendOnline}>
+                      <button className={styles.btnPrimary} onClick={startCamera} disabled={modelLoading}>
                         <span>▶</span> Start Camera
                       </button>
                     ) : (
@@ -491,7 +584,7 @@ export default function TranslatePage() {
                         <button
                           className={styles.btnAccent}
                           onClick={captureFrame}
-                          disabled={isProcessing || !backendOnline}
+                          disabled={isProcessing}
                         >
                           📸 Snap & Translate
                         </button>
@@ -501,7 +594,7 @@ export default function TranslatePage() {
                             checked={autoDetect}
                             onChange={(e) => setAutoDetect(e.target.checked)}
                           />
-                          Auto (800ms)
+                          Auto detect
                         </label>
                         <label className={styles.toggleLabel}>
                           <input
@@ -535,7 +628,7 @@ export default function TranslatePage() {
                       <button
                         className={styles.btnAccent}
                         onClick={() => sendFrameToBackend(selectedFile)}
-                        disabled={isProcessing || !backendOnline}
+                        disabled={isProcessing}
                       >
                         ⚡ Re-Analyze
                       </button>

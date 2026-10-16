@@ -1,0 +1,24 @@
+.status {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  width: fit-content;
+  color: var(--color-text-secondary);
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
+.dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: var(--color-success);
+}
+
+.online {
+  color: var(--color-text-secondary);
+}
+
+.offline .dot {
+  background: var(--color-error);
+}

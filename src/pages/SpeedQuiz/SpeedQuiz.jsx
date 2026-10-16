@@ -1,5 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
+import { useAuth } from '../../context/AuthContext';
+import {
+  loadQuizBestScore,
+  recordLearningHistory,
+  saveQuizBestScore,
+} from '../../lib/offlineDb';
 import signs from '../../data/signs.json';
 import { buildQuestion } from './quizLogic';
 import styles from './SpeedQuiz.module.css';
@@ -8,34 +14,59 @@ const GAME_SECONDS = 60;
 const FEEDBACK_MS = 700;
 const BEST_KEY = 'speedQuizBest';
 
-function loadBest() {
+function loadLegacyBest() {
   try {
     return Number(localStorage.getItem(BEST_KEY)) || 0;
-  } catch {
+  } catch (error) {
+    console.warn('Could not read the previous Speed Quiz score from localStorage.', error);
     return 0;
   }
 }
 
-function saveBest(value) {
+function saveLegacyBest(value) {
   try {
     localStorage.setItem(BEST_KEY, String(value));
-  } catch {
-    // storage unavailable: ignore, the game still works
+  } catch (error) {
+    console.warn('Could not save the Speed Quiz score to localStorage.', error);
   }
 }
 
 function SpeedQuiz() {
+  const { user } = useAuth();
   const [phase, setPhase] = useState('start'); // 'start' | 'playing' | 'result'
   const [question, setQuestion] = useState(null);
   const [score, setScore] = useState(0);
   const [timeLeft, setTimeLeft] = useState(GAME_SECONDS);
   const [picked, setPicked] = useState(null); // id of the clicked option
-  const [best, setBest] = useState(loadBest);
+  const [best, setBest] = useState(0);
+  const [bestReady, setBestReady] = useState(false);
   const [isNewBest, setIsNewBest] = useState(false);
   const feedbackTimer = useRef(null);
+  const gameId = useRef(0);
+  const recordedGameId = useRef(0);
 
   // Clear any pending timeout when leaving the page
   useEffect(() => () => clearTimeout(feedbackTimer.current), []);
+
+  useEffect(() => {
+    let active = true;
+    setBestReady(false);
+    loadQuizBestScore(user.id)
+      .then((loadedBest) => {
+        if (!active) return;
+        setBest(loadedBest);
+        setBestReady(true);
+      })
+      .catch((error) => {
+        console.error('Could not load the account-specific Speed Quiz score.', error);
+        if (!active) return;
+        setBest(loadLegacyBest());
+        setBestReady(true);
+      });
+    return () => {
+      active = false;
+    };
+  }, [user.id]);
 
   // Countdown: ticks once per second while playing
   useEffect(() => {
@@ -50,14 +81,27 @@ function SpeedQuiz() {
     const beatBest = score > best;
     if (beatBest) {
       setBest(score);
-      saveBest(score);
+      saveQuizBestScore(user.id, score).catch((error) => {
+        console.error('Could not save the account-specific Speed Quiz score.', error);
+        saveLegacyBest(score);
+      });
+    }
+    if (gameId.current !== recordedGameId.current) {
+      recordedGameId.current = gameId.current;
+      recordLearningHistory(user.id, 'quizHistory', {
+        score,
+        completedAt: new Date().toISOString(),
+      }).catch((error) => {
+        console.error('Could not save the Speed Quiz result to learning history.', error);
+      });
     }
     setIsNewBest(beatBest);
     setPhase('result');
-  }, [phase, timeLeft, score, best]);
+  }, [phase, timeLeft, score, best, user.id]);
 
   function startGame() {
     clearTimeout(feedbackTimer.current);
+    gameId.current += 1;
     setScore(0);
     setTimeLeft(GAME_SECONDS);
     setPicked(null);
@@ -97,7 +141,7 @@ function SpeedQuiz() {
               can in {GAME_SECONDS} seconds.
             </p>
             <p>Best score: <strong>{best}</strong></p>
-            <button className={styles.primary} onClick={startGame}>Start</button>
+            <button className={styles.primary} onClick={startGame} disabled={!bestReady}>Start</button>
           </section>
         )}
 
