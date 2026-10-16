@@ -2,9 +2,6 @@
    HANDSPEAK — Global Design System (Warm Editorial)
    ============================================================ */
 
-/* Google Fonts */
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,600;0,9..144,700;1,9..144,400;1,9..144,600&display=swap');
-
 /* ── Design Tokens ─────────────────────────────────────────── */
 :root {
   /* Light Mode palette — Warm cream, vibrant terracotta */
@@ -50,8 +47,8 @@
   --space-24: 6rem;
 
   /* Typography */
-  --font-sans: 'DM Sans', system-ui, -apple-system, sans-serif;
-  --font-display: 'Fraunces', serif;
+  --font-sans: 'DM Sans Variable', system-ui, -apple-system, sans-serif;
+  --font-display: 'Fraunces Variable', serif;
 
   /* Radii - Moving towards sleek/modern */
   --radius-sm: 8px;

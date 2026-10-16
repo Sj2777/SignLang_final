@@ -90,6 +90,13 @@
   color: var(--color-error);
 }
 
+.modelProgress {
+  display: block;
+  margin-top: 0.25rem;
+  font-size: 0.8rem;
+  font-weight: 400;
+}
+
 /* ── Workspace Grid ── */
 .workspace {
   display: grid;

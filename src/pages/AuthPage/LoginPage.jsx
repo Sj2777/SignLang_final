@@ -32,23 +32,29 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   
-  const { signIn, signUp } = useAuth();
+  const { signIn, signUp, isOffline, authMessage, clearAuthMessage } = useAuth();
   const navigate = useNavigate();
 
   const handleToggleMode = () => {
     setIsSignUp(!isSignUp);
     setAccountType(null); // Reset selection when switching modes
     setError('');
+    clearAuthMessage();
   };
 
   const handleSelectAccountType = (type) => {
     setAccountType(type);
     setError('');
+    clearAuthMessage();
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+    if (isOffline || !navigator.onLine) {
+      setError('You need an internet connection for your first login or sign-up on this device.');
+      return;
+    }
     setLoading(true);
     
     try {
@@ -99,7 +105,16 @@ export default function LoginPage() {
             : 'Log in to your HandSpeak dashboard.'}
         </p>
 
-        {error && <div className={styles.errorBanner}>{error}</div>}
+        {isOffline && (
+          <div className={styles.offlineBanner} role="status">
+            You’re offline. Previously signed-in users can continue on this device; your first login or sign-up requires internet.
+          </div>
+        )}
+        {(error || authMessage) && (
+          <div className={styles.errorBanner} role="alert">
+            {error || authMessage}
+          </div>
+        )}
 
         {showSelectionCards ? (
           <div className={styles.cardSelectionGrid}>
@@ -197,7 +212,7 @@ export default function LoginPage() {
               />
             </div>
 
-            <button type="submit" disabled={loading} className={styles.submitBtn}>
+            <button type="submit" disabled={loading || isOffline} className={styles.submitBtn}>
               {loading ? 'Processing...' : (isSignUp ? 'Create Account' : 'Log In')}
             </button>
           </form>
