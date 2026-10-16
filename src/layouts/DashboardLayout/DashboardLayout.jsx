@@ -1,6 +1,7 @@
 import { Outlet, Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
+import OnlineStatus from '../../components/OnlineStatus/OnlineStatus';
 import styles from './DashboardLayout.module.css';
 
 export default function DashboardLayout() {
@@ -50,6 +51,7 @@ export default function DashboardLayout() {
         </nav>
 
         <div className={styles.sidebarFooter}>
+          <OnlineStatus />
           <div className={styles.userInfo}>
             <div className={styles.userAvatar}>
               {user?.email?.[0].toUpperCase()}

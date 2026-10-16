@@ -55,6 +55,16 @@
   text-align: center;
 }
 
+.offlineBanner {
+  background: var(--color-surface-2);
+  color: var(--color-text-secondary);
+  padding: 0.75rem;
+  border-radius: 8px;
+  margin-bottom: 1.5rem;
+  font-size: 0.9rem;
+  text-align: center;
+}
+
 .form {
   display: flex;
   flex-direction: column;
