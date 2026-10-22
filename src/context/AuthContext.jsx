@@ -187,43 +187,70 @@ export const AuthProvider = ({ children }) => {
   }, [isOffline]);
 
   const signIn = async (email, password) => {
-    const normalizedEmail = email.trim().toLowerCase();
-    let result = { data: null, error: null };
-    try {
-      result = await supabase.auth.signInWithPassword({ email: normalizedEmail, password });
-    } catch (e) {
-      result = { data: null, error: e };
+    const normalizedEmail = (email || '').trim().toLowerCase();
+    if (!normalizedEmail || !password) {
+      return { data: null, error: new Error('Please enter both email and password.') };
     }
 
-    if (!result.error && result.data?.user) {
-      updateUser(result.data.user);
-      setAuthMessage('');
-      await persistProfile(result.data.user);
-      localStorage.setItem('handspeak_active_user', JSON.stringify(result.data.user));
-      return result;
-    }
-
-    // Bypass: Check local accounts so unconfirmed email in Supabase never blocks the user
     const accounts = JSON.parse(localStorage.getItem('handspeak_accounts') || '{}');
     const localAccount = accounts[normalizedEmail];
-    if (localAccount && localAccount.password === password) {
-      const authenticatedUser = {
-        id: localAccount.id,
-        email: localAccount.email,
-        user_metadata: localAccount.user_metadata,
-      };
-      updateUser(authenticatedUser);
-      setAuthMessage('');
-      await persistProfile(authenticatedUser);
-      localStorage.setItem('handspeak_active_user', JSON.stringify(authenticatedUser));
-      return { data: { user: authenticatedUser, session: { user: authenticatedUser } }, error: null };
+
+    // 1. If account is found locally:
+    if (localAccount) {
+      if (localAccount.password === password) {
+        const authenticatedUser = {
+          id: localAccount.id,
+          email: localAccount.email,
+          user_metadata: localAccount.user_metadata,
+        };
+        updateUser(authenticatedUser);
+        setAuthMessage('');
+        await persistProfile(authenticatedUser);
+        localStorage.setItem('handspeak_active_user', JSON.stringify(authenticatedUser));
+        return { data: { user: authenticatedUser, session: { user: authenticatedUser } }, error: null };
+      } else {
+        return { data: null, error: new Error('Incorrect password. Please check your password and try again.') };
+      }
     }
 
-    return result.error ? result : { data: null, error: new Error('Invalid email or password.') };
+    // 2. If not found locally, check Supabase
+    try {
+      const res = await supabase.auth.signInWithPassword({ email: normalizedEmail, password });
+      if (!res.error && res.data?.user) {
+        updateUser(res.data.user);
+        setAuthMessage('');
+        await persistProfile(res.data.user);
+        localStorage.setItem('handspeak_active_user', JSON.stringify(res.data.user));
+        
+        accounts[normalizedEmail] = {
+          id: res.data.user.id,
+          email: normalizedEmail,
+          password: password,
+          user_metadata: res.data.user.user_metadata,
+        };
+        localStorage.setItem('handspeak_accounts', JSON.stringify(accounts));
+        return res;
+      }
+    } catch {}
+
+    // 3. Account does not exist
+    return {
+      data: null,
+      error: new Error('No account found with this email address. Please sign up first.')
+    };
   };
 
   const signUp = async (email, password, metaData) => {
-    const normalizedEmail = email.trim().toLowerCase();
+    const normalizedEmail = (email || '').trim().toLowerCase();
+    if (!normalizedEmail || !password) {
+      return { data: null, error: new Error('Please fill in all required fields.') };
+    }
+
+    const accounts = JSON.parse(localStorage.getItem('handspeak_accounts') || '{}');
+    if (accounts[normalizedEmail]) {
+      return { data: null, error: new Error('An account with this email already exists. Please log in instead.') };
+    }
+
     let supabaseUser = null;
     try {
       const res = await supabase.auth.signUp({
@@ -249,7 +276,6 @@ export const AuthProvider = ({ children }) => {
     };
 
     // Save to local device accounts for seamless instant login
-    const accounts = JSON.parse(localStorage.getItem('handspeak_accounts') || '{}');
     accounts[normalizedEmail] = { ...newUser, password };
     localStorage.setItem('handspeak_accounts', JSON.stringify(accounts));
 
