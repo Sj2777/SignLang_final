@@ -55,6 +55,18 @@
   text-align: center;
 }
 
+.successBanner {
+  background: rgba(16, 185, 129, 0.12);
+  color: #059669;
+  border: 1px solid rgba(16, 185, 129, 0.25);
+  padding: 0.75rem;
+  border-radius: 8px;
+  margin-bottom: 1.5rem;
+  font-size: 0.9rem;
+  text-align: center;
+  line-height: 1.4;
+}
+
 .offlineBanner {
   background: var(--color-surface-2);
   color: var(--color-text-secondary);

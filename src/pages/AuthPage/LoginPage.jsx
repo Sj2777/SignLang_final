@@ -30,6 +30,7 @@ export default function LoginPage() {
   const [address, setAddress] = useState(''); // Org only
 
   const [error, setError] = useState('');
+  const [successMsg, setSuccessMsg] = useState('');
   const [loading, setLoading] = useState(false);
   
   const { signIn, signUp, isOffline, authMessage, clearAuthMessage } = useAuth();
@@ -39,18 +40,21 @@ export default function LoginPage() {
     setIsSignUp(!isSignUp);
     setAccountType(null); // Reset selection when switching modes
     setError('');
+    setSuccessMsg('');
     clearAuthMessage();
   };
 
   const handleSelectAccountType = (type) => {
     setAccountType(type);
     setError('');
+    setSuccessMsg('');
     clearAuthMessage();
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+    setSuccessMsg('');
     if (isOffline || !navigator.onLine) {
       setError('You need an internet connection for your first login or sign-up on this device.');
       return;
@@ -71,14 +75,25 @@ export default function LoginPage() {
           metaData.address = address;
         }
 
-        const { error } = await signUp(email, password, metaData);
+        const { data, error } = await signUp(email, password, metaData);
         if (error) throw error;
         
-        alert('Account created! (If email confirmation is enabled, check your inbox)');
+        // When email confirmation is enabled in Supabase, session is null until verified
+        if (!data?.session) {
+          setIsSignUp(false); // Switch to login view
+          setSuccessMsg('Account created! Please check your email to confirm your account before logging in.');
+          return;
+        }
+
         navigate('/dashboard'); 
       } else {
         const { error } = await signIn(email, password);
-        if (error) throw error;
+        if (error) {
+          if (error.message && error.message.toLowerCase().includes('invalid login credentials')) {
+            throw new Error('Invalid login credentials. If you recently signed up, make sure you clicked the confirmation link in your email first.');
+          }
+          throw error;
+        }
         navigate('/dashboard');
       }
     } catch (err) {
@@ -108,6 +123,11 @@ export default function LoginPage() {
         {isOffline && (
           <div className={styles.offlineBanner} role="status">
             You’re offline. Previously signed-in users can continue on this device; your first login or sign-up requires internet.
+          </div>
+        )}
+        {successMsg && (
+          <div className={styles.successBanner} role="status">
+            {successMsg}
           </div>
         )}
         {(error || authMessage) && (
