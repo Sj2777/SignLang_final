@@ -145,10 +145,11 @@ export const AuthProvider = ({ children }) => {
         if (data.session?.user) {
           updateUser(data.session.user, !navigator.onLine);
           void persistProfile(data.session.user);
-        } else if (!navigator.onLine) {
-          await restoreCachedProfile();
         } else {
-          await clearProfile();
+          const cachedUser = await restoreCachedProfile();
+          if (cachedUser && navigator.onLine) {
+            void validateSession(cachedUser);
+          }
         }
       } catch (error) {
         console.warn('Could not load the Supabase session; checking the offline profile.', error);

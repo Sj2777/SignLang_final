@@ -33,8 +33,15 @@ export default function LoginPage() {
   const [successMsg, setSuccessMsg] = useState('');
   const [loading, setLoading] = useState(false);
   
-  const { signIn, signUp, isOffline, authMessage, clearAuthMessage } = useAuth();
+  const { user, signIn, signUp, isOffline, authMessage, clearAuthMessage } = useAuth();
   const navigate = useNavigate();
+
+  // If user is already logged in on this device, immediately skip login and go to dashboard
+  useEffect(() => {
+    if (user) {
+      navigate('/dashboard', { replace: true });
+    }
+  }, [user, navigate]);
 
   const handleToggleMode = () => {
     setIsSignUp(!isSignUp);
@@ -78,14 +85,23 @@ export default function LoginPage() {
         const { data, error } = await signUp(email, password, metaData);
         if (error) throw error;
         
-        // When email confirmation is enabled in Supabase, session is null until verified
-        if (!data?.session) {
-          setIsSignUp(false); // Switch to login view
-          setSuccessMsg('Account created! Please check your email to confirm your account before logging in.');
+        // If session was returned, navigate immediately
+        if (data?.session) {
+          navigate('/dashboard', { replace: true });
           return;
         }
 
-        navigate('/dashboard'); 
+        // Attempt direct sign in
+        const signInRes = await signIn(email, password);
+        if (!signInRes.error) {
+          navigate('/dashboard', { replace: true });
+          return;
+        }
+
+        // If Supabase project still has "Confirm email" turned on:
+        setIsSignUp(false); // Switch to login view
+        setSuccessMsg('Account created! Please check your email to confirm your account (or disable "Confirm email" in your Supabase dashboard).');
+        return;
       } else {
         const { error } = await signIn(email, password);
         if (error) {
@@ -94,7 +110,7 @@ export default function LoginPage() {
           }
           throw error;
         }
-        navigate('/dashboard');
+        navigate('/dashboard', { replace: true });
       }
     } catch (err) {
       setError(err.message);
