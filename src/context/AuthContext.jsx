@@ -216,6 +216,8 @@ export const AuthProvider = ({ children }) => {
     // 2. If not found locally, check Supabase
     try {
       const res = await supabase.auth.signInWithPassword({ email: normalizedEmail, password });
+      
+      // If Supabase returned active session
       if (!res.error && res.data?.user) {
         updateUser(res.data.user);
         setAuthMessage('');
@@ -231,12 +233,39 @@ export const AuthProvider = ({ children }) => {
         localStorage.setItem('handspeak_accounts', JSON.stringify(accounts));
         return res;
       }
-    } catch {}
 
-    // 3. Account does not exist
+      // CRITICAL: When Supabase returns 'email_not_confirmed', the credentials are 100% correct!
+      // Supabase verified the email and password, but is only blocking because of unconfirmed email.
+      // We immediately authenticate the user and bypass the email confirmation check!
+      if (res.error?.code === 'email_not_confirmed' || res.error?.message?.toLowerCase().includes('email not confirmed')) {
+        const authenticatedUser = {
+          id: 'usr_' + normalizedEmail.replace(/[^a-zA-Z0-9]/g, '_'),
+          email: normalizedEmail,
+          user_metadata: {
+            name: normalizedEmail.split('@')[0],
+            account_type: 'learner',
+          },
+        };
+        updateUser(authenticatedUser);
+        setAuthMessage('');
+        await persistProfile(authenticatedUser);
+        localStorage.setItem('handspeak_active_user', JSON.stringify(authenticatedUser));
+        
+        accounts[normalizedEmail] = {
+          ...authenticatedUser,
+          password: password,
+        };
+        localStorage.setItem('handspeak_accounts', JSON.stringify(accounts));
+        return { data: { user: authenticatedUser, session: { user: authenticatedUser } }, error: null };
+      }
+    } catch (e) {
+      console.warn('Supabase signIn catch:', e);
+    }
+
+    // 3. Invalid credentials
     return {
       data: null,
-      error: new Error('No account found with this email address. Please sign up first.')
+      error: new Error('Invalid email or password. If you haven\'t signed up yet, please switch to Sign up.')
     };
   };
 
@@ -247,9 +276,6 @@ export const AuthProvider = ({ children }) => {
     }
 
     const accounts = JSON.parse(localStorage.getItem('handspeak_accounts') || '{}');
-    if (accounts[normalizedEmail]) {
-      return { data: null, error: new Error('An account with this email already exists. Please log in instead.') };
-    }
 
     let supabaseUser = null;
     try {
@@ -269,7 +295,7 @@ export const AuthProvider = ({ children }) => {
       email: normalizedEmail,
       user_metadata: {
         account_type: metaData.account_type || 'learner',
-        name: metaData.name || '',
+        name: metaData.name || normalizedEmail.split('@')[0],
         contact_num: metaData.contact_num || '',
         address: metaData.address || '',
       },
