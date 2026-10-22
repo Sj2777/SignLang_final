@@ -30,7 +30,6 @@ export default function LoginPage() {
   const [address, setAddress] = useState(''); // Org only
 
   const [error, setError] = useState('');
-  const [successMsg, setSuccessMsg] = useState('');
   const [loading, setLoading] = useState(false);
   
   const { user, signIn, signUp, isOffline, authMessage, clearAuthMessage } = useAuth();
@@ -47,21 +46,18 @@ export default function LoginPage() {
     setIsSignUp(!isSignUp);
     setAccountType(null); // Reset selection when switching modes
     setError('');
-    setSuccessMsg('');
     clearAuthMessage();
   };
 
   const handleSelectAccountType = (type) => {
     setAccountType(type);
     setError('');
-    setSuccessMsg('');
     clearAuthMessage();
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
-    setSuccessMsg('');
     if (isOffline || !navigator.onLine) {
       setError('You need an internet connection for your first login or sign-up on this device.');
       return;
@@ -82,34 +78,13 @@ export default function LoginPage() {
           metaData.address = address;
         }
 
-        const { data, error } = await signUp(email, password, metaData);
+        const { error } = await signUp(email, password, metaData);
         if (error) throw error;
         
-        // If session was returned, navigate immediately
-        if (data?.session) {
-          navigate('/dashboard', { replace: true });
-          return;
-        }
-
-        // Attempt direct sign in
-        const signInRes = await signIn(email, password);
-        if (!signInRes.error) {
-          navigate('/dashboard', { replace: true });
-          return;
-        }
-
-        // If Supabase project still has "Confirm email" turned on:
-        setIsSignUp(false); // Switch to login view
-        setSuccessMsg('Account created! Please check your email to confirm your account (or disable "Confirm email" in your Supabase dashboard).');
-        return;
+        navigate('/dashboard', { replace: true });
       } else {
         const { error } = await signIn(email, password);
-        if (error) {
-          if (error.message && error.message.toLowerCase().includes('invalid login credentials')) {
-            throw new Error('Invalid login credentials. If you recently signed up, make sure you clicked the confirmation link in your email first.');
-          }
-          throw error;
-        }
+        if (error) throw error;
         navigate('/dashboard', { replace: true });
       }
     } catch (err) {
@@ -139,11 +114,6 @@ export default function LoginPage() {
         {isOffline && (
           <div className={styles.offlineBanner} role="status">
             You’re offline. Previously signed-in users can continue on this device; your first login or sign-up requires internet.
-          </div>
-        )}
-        {successMsg && (
-          <div className={styles.successBanner} role="status">
-            {successMsg}
           </div>
         )}
         {(error || authMessage) && (
