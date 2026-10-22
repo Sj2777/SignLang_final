@@ -314,6 +314,51 @@ export const AuthProvider = ({ children }) => {
     return { data: { user: newUser, session: { user: newUser } }, error: null };
   };
 
+  const resetPassword = async (email, newPassword) => {
+    const normalizedEmail = (email || '').trim().toLowerCase();
+    if (!normalizedEmail || !newPassword) {
+      return { data: null, error: new Error('Please enter both your email and a new password.') };
+    }
+
+    if (newPassword.length < 6) {
+      return { data: null, error: new Error('Password must be at least 6 characters long.') };
+    }
+
+    const accounts = JSON.parse(localStorage.getItem('handspeak_accounts') || '{}');
+    const localAccount = accounts[normalizedEmail];
+
+    // Try sending Supabase recovery link in background if online
+    try {
+      await supabase.auth.resetPasswordForEmail(normalizedEmail);
+    } catch (e) {
+      console.warn('Supabase password reset request:', e);
+    }
+
+    if (localAccount) {
+      accounts[normalizedEmail] = {
+        ...localAccount,
+        password: newPassword,
+      };
+      localStorage.setItem('handspeak_accounts', JSON.stringify(accounts));
+      return { data: { success: true }, error: null };
+    }
+
+    // If account was created directly in Supabase or not yet saved locally:
+    const newAccount = {
+      id: 'usr_' + Date.now(),
+      email: normalizedEmail,
+      password: newPassword,
+      user_metadata: {
+        name: normalizedEmail.split('@')[0],
+        account_type: 'learner',
+      },
+    };
+    accounts[normalizedEmail] = newAccount;
+    localStorage.setItem('handspeak_accounts', JSON.stringify(accounts));
+
+    return { data: { success: true }, error: null };
+  };
+
   const signOut = async () => {
     updateUser(null);
     setAuthMessage('');
@@ -335,6 +380,7 @@ export const AuthProvider = ({ children }) => {
     signIn,
     signUp,
     signOut,
+    resetPassword,
   };
 
   return (

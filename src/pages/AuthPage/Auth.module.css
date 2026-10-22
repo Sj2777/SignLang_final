@@ -132,6 +132,40 @@
   cursor: not-allowed;
 }
 
+.forgotBtn {
+  background: none;
+  border: none;
+  color: var(--color-primary);
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 0;
+  text-decoration: underline;
+  transition: opacity 0.2s;
+}
+
+.forgotBtn:hover {
+  opacity: 0.8;
+}
+
+.backBtn {
+  background: none;
+  border: none;
+  color: var(--color-text-muted);
+  font-size: 0.9rem;
+  cursor: pointer;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  margin-bottom: 1rem;
+  transition: color 0.2s;
+}
+
+.backBtn:hover {
+  color: var(--color-text);
+}
+
 .toggleText {
   text-align: center;
   margin-top: 1.5rem;
