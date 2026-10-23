@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import Header from '../../components/Header/Header';
 import Footer from '../../components/Footer/Footer';
+import { useAuth } from '../../context/AuthContext';
+import { recordLearningHistory } from '../../lib/offlineDb';
 import { loadLocalSignInference } from '../../lib/localSignInference';
 import { extractFeatures } from '../../lib/signFeatures';
 import styles from './TranslatePage.module.css';
@@ -85,6 +87,22 @@ export default function TranslatePage() {
   const isProcessingRef = useRef(false);
   const localProviderRef = useRef(null);
   const wsRef = useRef(null);
+
+  const { user } = useAuth();
+  const lastLoggedSign = useRef('');
+  const lastLoggedTime = useRef(0);
+
+  const logSignPractice = useCallback((letter) => {
+    if (!user?.id || !letter) return;
+    const now = Date.now();
+    if (lastLoggedSign.current === letter && now - lastLoggedTime.current < 6000) return;
+    lastLoggedSign.current = letter;
+    lastLoggedTime.current = now;
+    recordLearningHistory(user.id, 'translateHistory', {
+      sign: letter,
+      timestamp: new Date().toISOString(),
+    }).catch(() => {});
+  }, [user?.id]);
 
   autoDetectRef.current = autoDetect;
   isProcessingRef.current = isProcessing;
@@ -229,11 +247,12 @@ export default function TranslatePage() {
     drawSkeleton(data.landmarks_points || []);
     if (data.success && data.detected && data.prediction) {
       setPrediction(data.prediction);
+      logSignPractice(data.prediction.letter);
       setErrorMsg('');
     } else if (data.message || data.error) {
       setErrorMsg(data.message || data.error);
     }
-  }, [drawSkeleton]);
+  }, [drawSkeleton, logSignPractice]);
 
   const runLocalInference = useCallback(async (source, isVideo) => {
     const provider = await ensureLocalProvider();
@@ -266,8 +285,9 @@ export default function TranslatePage() {
       phonetic: mapping.phonetic || localPrediction.letter,
       example_mr: mapping.example_mr || '',
     });
+    logSignPractice(localPrediction.letter);
     setErrorMsg('');
-  }, [drawSkeleton, ensureLocalProvider]);
+  }, [drawSkeleton, ensureLocalProvider, logSignPractice]);
 
   // Uses the configured server when healthy; otherwise inference runs locally.
   const sendFrameToBackend = useCallback(async (blob) => {

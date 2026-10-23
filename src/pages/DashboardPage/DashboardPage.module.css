@@ -124,3 +124,87 @@
   color: #10B981; /* green */
   font-weight: 500;
 }
+
+.historySection {
+  margin-top: 2rem;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 16px;
+  padding: 1.5rem 2rem;
+}
+
+.historySection h3 {
+  font-size: 1.1rem;
+  color: var(--color-text);
+  margin-bottom: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.historyList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.historyItem {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem 1rem;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  font-size: 0.95rem;
+}
+
+.historyScore {
+  font-weight: 600;
+  color: var(--color-primary);
+}
+
+.historyDate {
+  color: var(--color-text-muted);
+  font-size: 0.85rem;
+}
+
+.emptyPrompt {
+  color: var(--color-text-muted);
+  font-size: 0.95rem;
+  padding: 1rem 0;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.orgInfoCard {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 16px;
+  padding: 1.75rem 2rem;
+  margin-bottom: 2rem;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1.5rem;
+}
+
+.orgField {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.orgLabel {
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.orgValue {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--color-text);
+}
