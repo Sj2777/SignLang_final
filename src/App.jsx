@@ -10,6 +10,7 @@ import DashboardPage from './pages/DashboardPage/DashboardPage';
 import TranslatePage from './pages/TranslatePage/TranslatePage';
 import ReverseTranslatePage from './pages/ReverseTranslatePage/ReverseTranslatePage';
 import SpeedQuiz from './pages/SpeedQuiz/SpeedQuiz';
+import OrganizationsPage from './pages/OrganizationsPage/OrganizationsPage';
 
 function App() {
   return (
@@ -33,6 +34,7 @@ function App() {
               <Route path="/translate" element={<TranslatePage />} />
               <Route path="/reverse-translate" element={<ReverseTranslatePage />} />
               <Route path="/speed-quiz" element={<SpeedQuiz />} />
+              <Route path="/organizations" element={<OrganizationsPage />} />
             </Route>
 
             {/* Fallback */}

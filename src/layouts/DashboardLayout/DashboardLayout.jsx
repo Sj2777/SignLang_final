@@ -48,6 +48,12 @@ export default function DashboardLayout() {
           >
             Speed Quiz Game
           </Link>
+          <Link 
+            to="/organizations" 
+            className={`${styles.navLink} ${location.pathname === '/organizations' ? styles.active : ''}`}
+          >
+            Partner Organisations
+          </Link>
         </nav>
 
         <div className={styles.sidebarFooter}>

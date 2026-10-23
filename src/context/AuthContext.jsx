@@ -17,18 +17,53 @@ function isInvalidSessionError(error) {
     error?.name === 'AuthSessionMissingError';
 }
 
+function normalizeUser(u) {
+  if (!u) return null;
+  const email = (u.email || '').trim().toLowerCase();
+  const id = u.id || (email ? 'usr_' + email.replace(/[^a-zA-Z0-9]/g, '_') : 'usr_default');
+  return {
+    ...u,
+    id,
+    email,
+    user_metadata: {
+      name: u.user_metadata?.name || (email ? email.split('@')[0] : 'User'),
+      account_type: u.user_metadata?.account_type || 'learner',
+      ...(u.user_metadata || {}),
+    },
+  };
+}
+
 export const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(null);
+  const [user, setUser] = useState(() => {
+    try {
+      const stored = localStorage.getItem('handspeak_active_user');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (parsed) {
+          const normalized = normalizeUser(parsed);
+          localStorage.setItem('handspeak_active_user', JSON.stringify(normalized));
+          return normalized;
+        }
+      }
+    } catch {}
+    return null;
+  });
   const [loading, setLoading] = useState(true);
   const [isOfflineSession, setIsOfflineSession] = useState(false);
   const [authMessage, setAuthMessage] = useState('');
   const isOffline = useOnlineStatus();
-  const userRef = useRef(null);
+  const userRef = useRef(user);
 
   const updateUser = useCallback((nextUser, offlineSession = false) => {
-    userRef.current = nextUser;
-    setUser(nextUser);
+    const normalized = normalizeUser(nextUser);
+    userRef.current = normalized;
+    setUser(normalized);
     setIsOfflineSession(offlineSession);
+    if (normalized) {
+      try {
+        localStorage.setItem('handspeak_active_user', JSON.stringify(normalized));
+      } catch {}
+    }
   }, []);
 
   const persistProfile = useCallback(async (nextUser) => {
@@ -143,7 +178,7 @@ export const AuthProvider = ({ children }) => {
         if (storedActiveUser) {
           try {
             const parsed = JSON.parse(storedActiveUser);
-            if (parsed?.id) {
+            if (parsed) {
               updateUser(parsed);
               void persistProfile(parsed);
             }

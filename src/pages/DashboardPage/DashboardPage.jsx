@@ -1,7 +1,19 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { getLearningData, loadQuizBestScore } from '../../lib/offlineDb';
+import {
+  getLearningData,
+  loadQuizBestScore,
+  mergeQuizHistories,
+  mergeTranslateHistories,
+} from '../../lib/offlineDb';
+import {
+  getRegisteredOrganizations,
+  getLearnerMembership,
+  registerLearnerToOrg,
+  unregisterLearnerFromOrg,
+  getOrgMemberCount,
+} from '../../lib/organizations';
 import styles from './DashboardPage.module.css';
 
 const ActivitySVG = () => (
@@ -31,34 +43,49 @@ const UsersSVG = () => (
   </svg>
 );
 
+function toLocalDateStr(dateObj) {
+  const year = dateObj.getFullYear();
+  const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+  const day = String(dateObj.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 function calculateStreak(historyItems) {
   if (!historyItems || historyItems.length === 0) return 0;
 
-  const dates = new Set(
-    historyItems.map((item) => {
-      const d = new Date(item.completedAt || item.timestamp);
-      return isNaN(d.getTime()) ? '' : d.toISOString().split('T')[0];
-    }).filter(Boolean)
-  );
+  const dates = new Set();
+  for (const item of historyItems) {
+    if (!item) continue;
+    const raw = item.completedAt || item.timestamp || item.date;
+    if (raw) {
+      const d = new Date(raw);
+      if (!isNaN(d.getTime())) {
+        dates.add(toLocalDateStr(d));
+      }
+    }
+  }
 
-  const todayStr = new Date().toISOString().split('T')[0];
-  const yesterday = new Date();
+  if (dates.size === 0) return historyItems.length > 0 ? 1 : 0;
+
+  const now = new Date();
+  const todayStr = toLocalDateStr(now);
+  const yesterday = new Date(now);
   yesterday.setDate(yesterday.getDate() - 1);
-  const yesterdayStr = yesterday.toISOString().split('T')[0];
+  const yesterdayStr = toLocalDateStr(yesterday);
 
   let current = todayStr;
   if (!dates.has(todayStr)) {
     if (dates.has(yesterdayStr)) {
       current = yesterdayStr;
     } else {
-      return 0;
+      return historyItems.length > 0 ? 1 : 0;
     }
   }
 
   let streak = 0;
-  let checkDate = new Date(current);
+  let checkDate = new Date(current === todayStr ? now : yesterday);
   while (true) {
-    const checkStr = checkDate.toISOString().split('T')[0];
+    const checkStr = toLocalDateStr(checkDate);
     if (dates.has(checkStr)) {
       streak += 1;
       checkDate.setDate(checkDate.getDate() - 1);
@@ -67,14 +94,22 @@ function calculateStreak(historyItems) {
     }
   }
 
-  return streak;
+  return Math.max(streak, historyItems.length > 0 ? 1 : 0);
 }
 
 export default function DashboardPage() {
   const { user } = useAuth();
   
-  const userName = user?.user_metadata?.name || user?.email?.split('@')[0] || 'User';
-  const isOrg = user?.user_metadata?.account_type === 'organization';
+  const activeUser = user || (() => {
+    try {
+      return JSON.parse(localStorage.getItem('handspeak_active_user'));
+    } catch {
+      return null;
+    }
+  })();
+
+  const userName = activeUser?.user_metadata?.name || activeUser?.email?.split('@')[0] || 'User';
+  const isOrg = activeUser?.user_metadata?.account_type === 'organization';
 
   const [learningStats, setLearningStats] = useState({
     bestScore: 0,
@@ -92,20 +127,50 @@ export default function DashboardPage() {
     totalQuizzes: 0,
   });
 
-  useEffect(() => {
-    let active = true;
+  const [organizations, setOrganizations] = useState([]);
+  const [learnerOrg, setLearnerOrg] = useState(null);
+  const [actionNotice, setActionNotice] = useState('');
 
-    if (!user?.id) return;
+  const userId = activeUser?.id || (activeUser?.email ? 'usr_' + activeUser.email.trim().toLowerCase().replace(/[^a-zA-Z0-9]/g, '_') : 'guest');
+  const emailKey = activeUser?.email ? activeUser.email.trim().toLowerCase().replace(/[^a-zA-Z0-9]/g, '_') : null;
+
+  const handleRegisterOrg = (org) => {
+    try {
+      const membership = registerLearnerToOrg(userId, org, {
+        name: userName,
+        email: activeUser?.email,
+      });
+      setLearnerOrg(membership);
+      setActionNotice(`You have successfully registered with ${org.name}! Your learning progress will now be shared with their mentors.`);
+    } catch (err) {
+      console.error('Registration failed:', err);
+    }
+  };
+
+  const handleUnregisterOrg = (orgId) => {
+    try {
+      unregisterLearnerFromOrg(userId, orgId);
+      setLearnerOrg(null);
+      setActionNotice('You have unregistered from this organisation.');
+    } catch (err) {
+      console.error('Unregister failed:', err);
+    }
+  };
+
+  const loadUserData = () => {
+    const orgs = getRegisteredOrganizations();
+    setOrganizations(orgs);
+    setLearnerOrg(getLearnerMembership(userId));
 
     if (isOrg) {
-      // Calculate real community learners count from local registry
       try {
+        const myMemberCount = getOrgMemberCount(userId);
         const accounts = JSON.parse(localStorage.getItem('handspeak_accounts') || '{}');
         const learners = Object.values(accounts).filter(
           (a) => a.user_metadata?.account_type !== 'organization'
         ).length;
         setCommunityStats({
-          totalLearners: Math.max(learners, 1),
+          totalLearners: Math.max(learners, myMemberCount, 1),
           totalQuizzes: 48,
         });
       } catch {
@@ -114,43 +179,124 @@ export default function DashboardPage() {
       return;
     }
 
-    // Load actual personal data for the logged-in user
-    Promise.all([
-      getLearningData(user.id).catch(() => null),
-      loadQuizBestScore(user.id).catch(() => 0),
-    ]).then(([data, bestScore]) => {
-      if (!active) return;
+    // 1. Immediate synchronous load from all localStorage keys
+    let allLocalQuizAttempts = [];
+    let allLocalTransAttempts = [];
+    let localBest = 0;
 
-      const history = data?.quizHistory || [];
-      const translateHistory = data?.translateHistory || [];
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (!k) continue;
+        const lower = k.toLowerCase();
+
+        // Collect quiz attempts across all keys
+        if (lower.includes('quiz') && (lower.includes('hist') || lower.includes('attempt'))) {
+          try {
+            const raw = localStorage.getItem(k);
+            if (raw) {
+              const parsed = JSON.parse(raw);
+              if (Array.isArray(parsed)) {
+                allLocalQuizAttempts.push(...parsed);
+              } else if (parsed && typeof parsed === 'object' && 'score' in parsed) {
+                allLocalQuizAttempts.push(parsed);
+              }
+            }
+          } catch {}
+        }
+
+        // Collect best scores across all keys
+        if (lower.includes('quiz') && (lower.includes('best') || lower.includes('score'))) {
+          const val = Number(localStorage.getItem(k)) || 0;
+          if (val > localBest) localBest = val;
+        }
+
+        // Collect translate history
+        if (lower.includes('translate') && (lower.includes('hist') || lower.includes('attempt'))) {
+          try {
+            const raw = localStorage.getItem(k);
+            if (raw) {
+              const parsed = JSON.parse(raw);
+              if (Array.isArray(parsed)) allLocalTransAttempts.push(...parsed);
+            }
+          } catch {}
+        }
+      }
+    } catch {}
+
+    const initialHistory = mergeQuizHistories(allLocalQuizAttempts);
+    const initialTrans = mergeTranslateHistories(allLocalTransAttempts);
+    const maxInHistory = initialHistory.reduce((max, item) => Math.max(max, Number(item?.score) || 0), 0);
+    const initialBest = Math.max(localBest, maxInHistory);
+
+    if (initialHistory.length > 0 || initialBest > 0 || initialTrans.length > 0) {
+      const quizCount = initialHistory.length;
+      const totalScore = initialHistory.reduce((sum, item) => sum + (Number(item?.score) || 0), 0);
+      const avgScore = quizCount > 0 ? Math.round(totalScore / quizCount) : 0;
+      const accuracy = quizCount > 0 ? Math.min(100, Math.round((avgScore / 15) * 100)) : 0;
+      const streak = calculateStreak([...initialHistory, ...initialTrans]);
+      const uniqueSigns = new Set(initialTrans.map((t) => t.sign).filter(Boolean));
+      const signsPracticed = uniqueSigns.size > 0 ? uniqueSigns.size : (initialBest > 0 ? Math.min(26, initialBest * 2) : 0);
+
+      setLearningStats({
+        bestScore: initialBest,
+        quizCount,
+        avgScore,
+        accuracy,
+        streak: Math.max(streak, quizCount > 0 ? 1 : 0),
+        signsPracticed,
+        recentQuizzes: [...initialHistory].slice(-4).reverse(),
+        loaded: true,
+      });
+    }
+
+    // 2. Load and merge IndexedDB asynchronously
+    Promise.all([
+      getLearningData(activeUser || userId).catch(() => null),
+      loadQuizBestScore(activeUser || userId).catch(() => initialBest),
+    ]).then(([data, bestScore]) => {
+      const history = mergeQuizHistories(initialHistory, data?.quizHistory);
+      const translateHistory = mergeTranslateHistories(initialTrans, data?.translateHistory);
+      const maxScore = history.reduce((max, item) => Math.max(max, Number(item?.score) || 0), 0);
+      const effectiveBest = Math.max(bestScore || 0, initialBest, data?.quizBestScore || 0, maxScore);
       const quizCount = history.length;
       
-      const totalScore = history.reduce((sum, item) => sum + (item.score || 0), 0);
+      const totalScore = history.reduce((sum, item) => sum + (Number(item?.score) || 0), 0);
       const avgScore = quizCount > 0 ? Math.round(totalScore / quizCount) : 0;
       const accuracy = quizCount > 0 ? Math.min(100, Math.round((avgScore / 15) * 100)) : 0;
 
       const streak = calculateStreak([...history, ...translateHistory]);
 
-      // Unique signs practiced
       const uniqueSigns = new Set([
         ...translateHistory.map((t) => t.sign).filter(Boolean),
       ]);
-      const signsPracticed = uniqueSigns.size > 0 ? uniqueSigns.size : (bestScore > 0 ? Math.min(26, bestScore * 2) : 0);
+      const signsPracticed = uniqueSigns.size > 0 ? uniqueSigns.size : (effectiveBest > 0 ? Math.min(26, effectiveBest * 2) : 0);
 
       setLearningStats({
-        bestScore: bestScore || 0,
+        bestScore: effectiveBest,
         quizCount,
         avgScore,
         accuracy,
-        streak,
+        streak: Math.max(streak, quizCount > 0 ? 1 : 0),
         signsPracticed,
         recentQuizzes: [...history].slice(-4).reverse(),
         loaded: true,
       });
     });
+  };
+
+  useEffect(() => {
+    loadUserData();
+
+    const handleRefresh = () => loadUserData();
+    window.addEventListener('focus', handleRefresh);
+    window.addEventListener('storage', handleRefresh);
+    window.addEventListener('handspeak_quiz_updated', handleRefresh);
 
     return () => {
-      active = false;
+      window.removeEventListener('focus', handleRefresh);
+      window.removeEventListener('storage', handleRefresh);
+      window.removeEventListener('handspeak_quiz_updated', handleRefresh);
     };
   }, [user?.id, isOrg]);
 
@@ -283,6 +429,111 @@ export default function DashboardPage() {
                   <span>🎯 You have not taken any quizzes yet. Click <strong>Speed Quiz</strong> below to test your signs and log your first score!</span>
                 </div>
               )}
+            </div>
+
+            {/* Registered Organisations Section for Learners */}
+            <div className={styles.orgsSection}>
+              <h2 className={styles.sectionTitle}>Partner Organisations &amp; Deaf Communities</h2>
+
+              {actionNotice && (
+                <div className={styles.toastSuccess}>
+                  <span>{actionNotice}</span>
+                  <button
+                    type="button"
+                    onClick={() => setActionNotice('')}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.1rem', color: '#065F46', padding: '0 4px' }}
+                    aria-label="Dismiss notice"
+                  >
+                    ✕
+                  </button>
+                </div>
+              )}
+
+              {learnerOrg && (
+                <div className={styles.affiliationBanner}>
+                  <div className={styles.affiliationText}>
+                    <span style={{ fontSize: '1.25rem' }}>🏛️</span>
+                    <span>You are currently registered with <strong>{learnerOrg.orgName}</strong></span>
+                  </div>
+                  <button
+                    type="button"
+                    className={styles.affiliationAction}
+                    onClick={() => handleUnregisterOrg(learnerOrg.orgId)}
+                  >
+                    Leave Organisation
+                  </button>
+                </div>
+              )}
+
+              <div className={styles.orgGrid}>
+                {organizations.map((org) => {
+                  const isMember = learnerOrg?.orgId === org.id;
+
+                  return (
+                    <div
+                      key={org.id}
+                      className={`${styles.orgCard} ${isMember ? styles.orgCardRegistered : ''}`}
+                    >
+                      <div className={styles.orgCardTop}>
+                        <div className={styles.orgHeaderRow}>
+                          <h3 className={styles.orgName}>{org.name}</h3>
+                          {org.verified && <span className={styles.verifiedBadge}>Verified Partner ✓</span>}
+                        </div>
+
+                        <span className={styles.orgCategory}>{org.category}</span>
+                        <p className={styles.orgDescription}>{org.description}</p>
+
+                        <div className={styles.orgContactDetails}>
+                          <div className={styles.contactRow}>
+                            <span className={styles.contactIcon}>📞</span>
+                            <span className={styles.contactText}>
+                              <a href={`tel:${org.contact_num}`} style={{ color: 'inherit', textDecoration: 'none' }}>
+                                {org.contact_num}
+                              </a>
+                            </span>
+                          </div>
+
+                          <div className={styles.contactRow}>
+                            <span className={styles.contactIcon}>✉️</span>
+                            <span className={styles.contactText}>
+                              <a href={`mailto:${org.email}`} style={{ color: 'inherit', textDecoration: 'none' }}>
+                                {org.email}
+                              </a>
+                            </span>
+                          </div>
+
+                          <div className={styles.contactRow}>
+                            <span className={styles.contactIcon}>📍</span>
+                            <span className={styles.contactText}>{org.address}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div>
+                        {isMember ? (
+                          <button
+                            type="button"
+                            className={styles.orgRegisteredBtn}
+                            onClick={() => handleUnregisterOrg(org.id)}
+                          >
+                            <span>Registered Member ✓</span>
+                            <span style={{ fontSize: '0.8rem', opacity: 0.85 }}>(Click to Leave)</span>
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            className={styles.orgRegisterBtn}
+                            onClick={() => handleRegisterOrg(org)}
+                          >
+                            <span>Register to Organisation</span>
+                            <span>➔</span>
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           </>
         )}

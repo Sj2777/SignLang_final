@@ -1,10 +1,9 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import {
   loadQuizBestScore,
-  recordLearningHistory,
-  saveQuizBestScore,
+  recordQuizCompletion,
 } from '../../lib/offlineDb';
 import signs from '../../data/signs.json';
 import { buildQuestion } from './quizLogic';
@@ -12,24 +11,6 @@ import styles from './SpeedQuiz.module.css';
 
 const GAME_SECONDS = 60;
 const FEEDBACK_MS = 700;
-const BEST_KEY = 'speedQuizBest';
-
-function loadLegacyBest() {
-  try {
-    return Number(localStorage.getItem(BEST_KEY)) || 0;
-  } catch (error) {
-    console.warn('Could not read the previous Speed Quiz score from localStorage.', error);
-    return 0;
-  }
-}
-
-function saveLegacyBest(value) {
-  try {
-    localStorage.setItem(BEST_KEY, String(value));
-  } catch (error) {
-    console.warn('Could not save the Speed Quiz score to localStorage.', error);
-  }
-}
 
 function SpeedQuiz() {
   const { user } = useAuth();
@@ -44,67 +25,138 @@ function SpeedQuiz() {
   const feedbackTimer = useRef(null);
   const gameId = useRef(0);
   const recordedGameId = useRef(0);
+  const scoreRef = useRef(0);
+  const phaseRef = useRef('start');
+
+  useEffect(() => {
+    scoreRef.current = score;
+  }, [score]);
+
+  useEffect(() => {
+    phaseRef.current = phase;
+  }, [phase]);
 
   // Clear any pending timeout when leaving the page
   useEffect(() => () => clearTimeout(feedbackTimer.current), []);
 
+  // Load best score on mount / user change
   useEffect(() => {
     let active = true;
     setBestReady(false);
+
+    if (!user?.id) {
+      setBest(0);
+      setBestReady(true);
+      return;
+    }
+
+    // Try reading local storage first
+    try {
+      const localVal = Number(localStorage.getItem(`handspeak_quiz_best_${user.id}`)) || 0;
+      if (localVal > 0) {
+        setBest(localVal);
+      }
+    } catch {}
+
     loadQuizBestScore(user.id)
       .then((loadedBest) => {
         if (!active) return;
-        setBest(loadedBest);
+        setBest((prev) => Math.max(prev, loadedBest));
         setBestReady(true);
       })
       .catch((error) => {
-        console.error('Could not load the account-specific Speed Quiz score.', error);
+        console.error('Could not load Speed Quiz score.', error);
         if (!active) return;
-        setBest(loadLegacyBest());
         setBestReady(true);
       });
+
     return () => {
       active = false;
     };
-  }, [user.id]);
+  }, [user?.id]);
 
-  // Countdown: ticks once per second while playing
+  const finalizeGame = useCallback((finalScore) => {
+    if (gameId.current === recordedGameId.current) return;
+    recordedGameId.current = gameId.current;
+
+    const actualScore = Math.max(0, Number(finalScore ?? scoreRef.current) || 0);
+    const beatBest = actualScore > best;
+    if (beatBest) {
+      setBest(actualScore);
+      setIsNewBest(true);
+    } else {
+      setIsNewBest(false);
+    }
+
+    try {
+      const now = new Date().toISOString();
+      const attempt = { score: actualScore, completedAt: now };
+      const currentList = JSON.parse(localStorage.getItem('handspeak_quiz_history') || '[]');
+      currentList.push(attempt);
+      localStorage.setItem('handspeak_quiz_history', JSON.stringify(currentList));
+      localStorage.setItem('speedQuizHistory', JSON.stringify(currentList));
+      if (user?.id) {
+        localStorage.setItem(`handspeak_quiz_history_${user.id}`, JSON.stringify(currentList));
+      }
+      if (user?.email) {
+        const slug = user.email.trim().toLowerCase().replace(/[^a-zA-Z0-9]/g, '_');
+        localStorage.setItem(`handspeak_quiz_history_usr_${slug}`, JSON.stringify(currentList));
+      }
+      window.dispatchEvent(new CustomEvent('handspeak_quiz_updated', { detail: attempt }));
+    } catch {}
+
+    recordQuizCompletion(user || 'guest', actualScore).catch((error) => {
+      console.error('Could not save quiz completion.', error);
+    });
+
+    setPhase('result');
+  }, [best, user]);
+
+  // Save on unexpected unmount if user was actively playing
+  useEffect(() => {
+    return () => {
+      if (
+        phaseRef.current === 'playing' &&
+        gameId.current !== recordedGameId.current
+      ) {
+        recordedGameId.current = gameId.current;
+        recordQuizCompletion(user || 'guest', scoreRef.current).catch(() => {});
+      }
+    };
+  }, [user]);
+
+  // Countdown timer while playing: ticks once per second
   useEffect(() => {
     if (phase !== 'playing') return;
-    const id = setInterval(() => setTimeLeft((t) => t - 1), 1000);
-    return () => clearInterval(id);
+
+    const timerId = setInterval(() => {
+      setTimeLeft((t) => {
+        if (t <= 1) {
+          clearInterval(timerId);
+          return 0;
+        }
+        return t - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timerId);
   }, [phase]);
 
-  // End the game when time runs out
+  // Trigger finalize when timeLeft reaches 0
   useEffect(() => {
-    if (phase !== 'playing' || timeLeft > 0) return;
-    const beatBest = score > best;
-    if (beatBest) {
-      setBest(score);
-      saveQuizBestScore(user.id, score).catch((error) => {
-        console.error('Could not save the account-specific Speed Quiz score.', error);
-        saveLegacyBest(score);
-      });
+    if (phase === 'playing' && timeLeft === 0) {
+      finalizeGame(scoreRef.current);
     }
-    if (gameId.current !== recordedGameId.current) {
-      recordedGameId.current = gameId.current;
-      recordLearningHistory(user.id, 'quizHistory', {
-        score,
-        completedAt: new Date().toISOString(),
-      }).catch((error) => {
-        console.error('Could not save the Speed Quiz result to learning history.', error);
-      });
-    }
-    setIsNewBest(beatBest);
-    setPhase('result');
-  }, [phase, timeLeft, score, best, user.id]);
+  }, [phase, timeLeft, finalizeGame]);
 
   function startGame() {
     clearTimeout(feedbackTimer.current);
     gameId.current += 1;
     setScore(0);
+    scoreRef.current = 0;
     setTimeLeft(GAME_SECONDS);
     setPicked(null);
+    setIsNewBest(false);
     setQuestion(buildQuestion(signs));
     setPhase('playing');
   }
@@ -113,12 +165,19 @@ function SpeedQuiz() {
     if (picked) return; // ignore clicks during feedback
     setPicked(option.id);
     if (option.id === question.answer.id) {
-      setScore((s) => s + 1);
+      scoreRef.current += 1;
+      setScore(scoreRef.current);
     }
     feedbackTimer.current = setTimeout(() => {
       setPicked(null);
       setQuestion((q) => buildQuestion(signs, q.answer.id));
     }, FEEDBACK_MS);
+  }
+
+  function handleBackClick() {
+    if (phase === 'playing') {
+      finalizeGame(scoreRef.current);
+    }
   }
 
   function optionClass(option) {
@@ -131,7 +190,9 @@ function SpeedQuiz() {
   return (
     <main className={styles.page}>
       <div className={styles.card}>
-        <Link to="/" className={styles.back}>&larr; Back to home</Link>
+        <Link to="/dashboard" className={styles.back} onClick={handleBackClick}>
+          &larr; Back to Dashboard
+        </Link>
 
         {phase === 'start' && (
           <section className={styles.center}>
@@ -141,7 +202,9 @@ function SpeedQuiz() {
               can in {GAME_SECONDS} seconds.
             </p>
             <p>Best score: <strong>{best}</strong></p>
-            <button className={styles.primary} onClick={startGame} disabled={!bestReady}>Start</button>
+            <button className={styles.primary} onClick={startGame} disabled={!bestReady}>
+              Start Quiz
+            </button>
           </section>
         )}
 
@@ -173,19 +236,51 @@ function SpeedQuiz() {
                 </button>
               ))}
             </div>
+
+            <button
+              type="button"
+              className={styles.finishBtn}
+              onClick={() => finalizeGame(scoreRef.current)}
+            >
+              Finish &amp; Save Score ({score} {score === 1 ? 'pt' : 'pts'})
+            </button>
           </section>
         )}
 
         {phase === 'result' && (
           <section className={styles.center}>
-            <h1>Time's up!</h1>
+            <h1>{timeLeft <= 0 ? "Time's up!" : 'Quiz Finished!'}</h1>
             <p className={styles.bigScore}>{score}</p>
             <p>correct answers</p>
-            {isNewBest && <p className={styles.newBest}>New best score!</p>}
+            {isNewBest && <p className={styles.newBest}>New best score! 🏆</p>}
             <p>Best score: <strong>{best}</strong></p>
-            <button className={styles.primary} onClick={startGame}>Play again</button>
+
+            <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'center', marginTop: '1.5rem', flexWrap: 'wrap' }}>
+              <button className={styles.primary} onClick={startGame} style={{ margin: 0 }}>
+                Play again
+              </button>
+              <Link
+                to="/dashboard"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  padding: '0 1.5rem',
+                  minHeight: '54px',
+                  borderRadius: '9999px',
+                  background: 'var(--color-surface-2)',
+                  color: 'var(--color-text-primary)',
+                  border: '2px solid var(--color-border-strong)',
+                  textDecoration: 'none',
+                  fontWeight: 600,
+                }}
+              >
+                View on Dashboard ➔
+              </Link>
+            </div>
           </section>
         )}
+
         <p className={styles.credit}>
           Sign images: Indian Sign Language Research and Training Centre
           (ISLRTC), Government of India.
