@@ -36,6 +36,11 @@ function SpeedQuiz() {
     phaseRef.current = phase;
   }, [phase]);
 
+  const userRef = useRef(user);
+  useEffect(() => {
+    userRef.current = user;
+  }, [user]);
+
   // Clear any pending timeout when leaving the page
   useEffect(() => () => clearTimeout(feedbackTimer.current), []);
 
@@ -76,6 +81,10 @@ function SpeedQuiz() {
   }, [user?.id]);
 
   const finalizeGame = useCallback((finalScore) => {
+    clearTimeout(feedbackTimer.current);
+    // Guarantee immediate transition to result screen
+    setPhase('result');
+
     if (gameId.current === recordedGameId.current) return;
     recordedGameId.current = gameId.current;
 
@@ -95,22 +104,21 @@ function SpeedQuiz() {
       currentList.push(attempt);
       localStorage.setItem('handspeak_quiz_history', JSON.stringify(currentList));
       localStorage.setItem('speedQuizHistory', JSON.stringify(currentList));
-      if (user?.id) {
-        localStorage.setItem(`handspeak_quiz_history_${user.id}`, JSON.stringify(currentList));
+      const currentUser = userRef.current;
+      if (currentUser?.id) {
+        localStorage.setItem(`handspeak_quiz_history_${currentUser.id}`, JSON.stringify(currentList));
       }
-      if (user?.email) {
-        const slug = user.email.trim().toLowerCase().replace(/[^a-zA-Z0-9]/g, '_');
+      if (currentUser?.email) {
+        const slug = currentUser.email.trim().toLowerCase().replace(/[^a-zA-Z0-9]/g, '_');
         localStorage.setItem(`handspeak_quiz_history_usr_${slug}`, JSON.stringify(currentList));
       }
       window.dispatchEvent(new CustomEvent('handspeak_quiz_updated', { detail: attempt }));
     } catch {}
 
-    recordQuizCompletion(user || 'guest', actualScore).catch((error) => {
+    recordQuizCompletion(userRef.current || 'guest', actualScore).catch((error) => {
       console.error('Could not save quiz completion.', error);
     });
-
-    setPhase('result');
-  }, [best, user]);
+  }, [best]);
 
   // Save on unexpected unmount if user was actively playing
   useEffect(() => {
@@ -120,33 +128,31 @@ function SpeedQuiz() {
         gameId.current !== recordedGameId.current
       ) {
         recordedGameId.current = gameId.current;
-        recordQuizCompletion(user || 'guest', scoreRef.current).catch(() => {});
+        recordQuizCompletion(userRef.current || 'guest', scoreRef.current).catch(() => {});
       }
     };
-  }, [user]);
+  }, []);
 
-  // Countdown timer while playing: ticks once per second
+  // Countdown timer while playing: ticks once per second and halts instantly on 0
   useEffect(() => {
-    if (phase !== 'playing') return;
+    if (phase !== 'playing') return undefined;
+
+    if (timeLeft <= 0) {
+      finalizeGame(scoreRef.current);
+      return undefined;
+    }
 
     const timerId = setInterval(() => {
-      setTimeLeft((t) => {
-        if (t <= 1) {
+      setTimeLeft((prev) => {
+        if (prev <= 1) {
           clearInterval(timerId);
           return 0;
         }
-        return t - 1;
+        return prev - 1;
       });
     }, 1000);
 
     return () => clearInterval(timerId);
-  }, [phase]);
-
-  // Trigger finalize when timeLeft reaches 0
-  useEffect(() => {
-    if (phase === 'playing' && timeLeft === 0) {
-      finalizeGame(scoreRef.current);
-    }
   }, [phase, timeLeft, finalizeGame]);
 
   function startGame() {
@@ -162,13 +168,14 @@ function SpeedQuiz() {
   }
 
   function handleAnswer(option) {
-    if (picked) return; // ignore clicks during feedback
+    if (phaseRef.current !== 'playing' || timeLeft <= 0 || picked) return; // ignore clicks if not playing or during feedback
     setPicked(option.id);
     if (option.id === question.answer.id) {
       scoreRef.current += 1;
       setScore(scoreRef.current);
     }
     feedbackTimer.current = setTimeout(() => {
+      if (phaseRef.current !== 'playing') return;
       setPicked(null);
       setQuestion((q) => buildQuestion(signs, q.answer.id));
     }, FEEDBACK_MS);
