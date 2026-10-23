@@ -1,4 +1,6 @@
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import { getPlatformLiveStats } from '../../../lib/liveStats';
 import styles from './HeroSection.module.css';
 
 const HeroImage = () => (
@@ -13,6 +15,20 @@ const HeroImage = () => (
 );
 
 export default function HeroSection() {
+  const [stats, setStats] = useState(() => getPlatformLiveStats());
+
+  useEffect(() => {
+    const handleUpdate = () => setStats(getPlatformLiveStats());
+    window.addEventListener('storage', handleUpdate);
+    window.addEventListener('focus', handleUpdate);
+    window.addEventListener('handspeak_account_updated', handleUpdate);
+    return () => {
+      window.removeEventListener('storage', handleUpdate);
+      window.removeEventListener('focus', handleUpdate);
+      window.removeEventListener('handspeak_account_updated', handleUpdate);
+    };
+  }, []);
+
   return (
     <section className={styles.hero} aria-labelledby="hero-heading">
       {/* Organic background shapes instead of cyber grids */}
@@ -52,13 +68,12 @@ export default function HeroSection() {
 
           <div className={styles.trustRow}>
             <div className={styles.avatarStack} aria-label="Community members">
-              {/* Solid warm colors instead of gradients for avatars */}
               {['#E05D36','#0F766E','#F59E0B','#475569'].map((c, i) => (
                 <div key={i} className={styles.trustAvatar} style={{ background: c }} />
               ))}
             </div>
             <p className={styles.trustText}>
-              Join over <strong>2,400</strong> learners and organizations.
+              Connecting <strong>{stats.learners}</strong> learner{stats.learners === 1 ? '' : 's'} with <strong>{stats.organizations}</strong> accredited partner organisations.
             </p>
           </div>
         </div>
