@@ -294,6 +294,49 @@ VITE_SUPABASE_ANON_KEY=your-supabase-anon-key
 
 ---
 
+## 🌐 Deploying to Render via Docker
+
+HandSpeak includes a production-ready multi-stage [`Dockerfile`](./Dockerfile) and a Render Blueprint ([`render.yaml`](./render.yaml)) that bundles the **React 19 PWA** and the **FastAPI ML backend** into a **single, unified container**. This allows you to host the complete application on Render's free tier with zero CORS issues and a single public domain.
+
+### Method 1: 1-Click Render Blueprint (Recommended)
+
+1. Push your latest code to your GitHub repository.
+2. Log in to [Render Dashboard](https://dashboard.render.com/).
+3. Click **New +** > **Blueprint**.
+4. Select your `SignLang_final` repository.
+5. Render will automatically detect `render.yaml` and configure:
+   - **Environment**: Docker
+   - **Dockerfile**: `./Dockerfile`
+   - **Health Check Path**: `/health`
+   - **Plan**: Free
+6. (Optional) Under environment variables, enter your `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`.
+7. Click **Apply**. Render will build and deploy your app with its own HTTPS URL (e.g., `https://handspeak.onrender.com`).
+
+---
+
+### Method 2: Manual Web Service Setup
+
+If you prefer configuring the Web Service manually on Render:
+
+1. Click **New +** > **Web Service**.
+2. Connect your GitHub repository.
+3. Configure the settings:
+   - **Name**: `handspeak`
+   - **Region**: Choose the closest region (e.g., *Oregon* or *Frankfurt*)
+   - **Language / Runtime**: **Docker**
+   - **Dockerfile Path**: `./Dockerfile`
+   - **Docker Build Context**: `.`
+   - **Instance Type**: **Free**
+4. Under **Health Check Path**, enter: `/health`
+5. Under **Environment Variables**, add:
+   - `PORT`: `10000`
+   - `VITE_SUPABASE_URL`: *(your Supabase project URL)*
+   - `VITE_SUPABASE_ANON_KEY`: *(your Supabase anon key)*
+6. Click **Create Web Service**. Render will execute the multi-stage build and launch the app!
+
+
+---
+
 ## 🧠 Machine Learning Pipeline
 
 ### Landmark Extraction & Normalization

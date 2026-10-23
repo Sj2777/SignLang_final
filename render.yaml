@@ -1,0 +1,24 @@
+# =========================================================================
+# Render Blueprint Specification (render.yaml)
+# Docs: https://render.com/docs/blueprint-spec
+# =========================================================================
+services:
+  # -----------------------------------------------------------------------
+  # Unified Web Service (React Frontend + FastAPI ML Backend in one container)
+  # -----------------------------------------------------------------------
+  - type: web
+    name: handspeak
+    runtime: docker
+    plan: free
+    region: oregon
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: PORT
+        value: 10000
+      - key: VITE_SUPABASE_URL
+        sync: false
+      - key: VITE_SUPABASE_ANON_KEY
+        sync: false
