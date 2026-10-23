@@ -339,6 +339,9 @@ export const AuthProvider = ({ children }) => {
     // Save to local device accounts for seamless instant login
     accounts[normalizedEmail] = { ...newUser, password };
     localStorage.setItem('handspeak_accounts', JSON.stringify(accounts));
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('handspeak_account_updated'));
+    }
 
     // Immediately authenticate user on this device
     updateUser(newUser);
