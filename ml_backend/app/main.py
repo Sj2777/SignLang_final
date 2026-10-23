@@ -1,8 +1,11 @@
 # app/main.py
+import os
 import json
 import base64
 from fastapi import FastAPI, File, UploadFile, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from .schemas import PredictResponse, LandmarksPredictRequest
 from .predictor import predictor
 
@@ -84,3 +87,33 @@ async def websocket_stream(websocket: WebSocket):
             await websocket.send_json({"error": str(e), "success": False})
         except:
             pass
+
+
+# ---------------------------------------------------------------------------
+# Optional Single-Page Application (SPA) static files serving
+# Serves the compiled Vite React frontend when running in Docker or unified mode
+# ---------------------------------------------------------------------------
+FRONTEND_DIST = os.environ.get(
+    "FRONTEND_DIST",
+    os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "dist")
+)
+
+if os.path.isdir(FRONTEND_DIST):
+    assets_dir = os.path.join(FRONTEND_DIST, "assets")
+    if os.path.isdir(assets_dir):
+        app.mount("/assets", StaticFiles(directory=assets_dir), name="assets")
+
+    @app.get("/{full_path:path}", include_in_schema=False)
+    async def serve_frontend(full_path: str):
+        # Exclude API endpoints and OpenAPI doc paths
+        if full_path in ("docs", "redoc", "openapi.json"):
+            raise HTTPException(status_code=404)
+        
+        target = os.path.join(FRONTEND_DIST, full_path)
+        if full_path and os.path.isfile(target):
+            return FileResponse(target)
+        
+        index_file = os.path.join(FRONTEND_DIST, "index.html")
+        if os.path.isfile(index_file):
+            return FileResponse(index_file)
+        raise HTTPException(status_code=404, detail="SPA entry index.html not found")
