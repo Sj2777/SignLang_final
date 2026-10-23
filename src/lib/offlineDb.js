@@ -98,55 +98,298 @@ function createEmptyLearningData(userId) {
   };
 }
 
-export async function getLearningData(userId) {
-  if (!userId) throw new Error('A user id is required to load learning data.');
-  const database = await getDatabase();
-  return (await database.get('learningData', userId)) ?? createEmptyLearningData(userId);
+export function resolveUserId(userOrId) {
+  if (!userOrId) return 'usr_guest';
+  if (typeof userOrId === 'object') {
+    if (userOrId.id) return String(userOrId.id);
+    if (userOrId.email) {
+      return 'usr_' + userOrId.email.trim().toLowerCase().replace(/[^a-zA-Z0-9]/g, '_');
+    }
+    return 'usr_guest';
+  }
+  return String(userOrId);
 }
 
-export async function saveQuizBestScore(userId, score) {
-  if (!userId) throw new Error('A user id is required to save a quiz score.');
-  if (!Number.isFinite(score) || score < 0) {
+export function mergeQuizHistories(...sources) {
+  const seen = new Set();
+  const merged = [];
+
+  for (const src of sources) {
+    if (!Array.isArray(src)) continue;
+    for (const item of src) {
+      if (!item || typeof item !== 'object') continue;
+      const score = Number(item.score ?? item.points ?? item.value) || 0;
+      const completedAt = item.completedAt || item.timestamp || item.date || item.createdAt || '';
+      const dedupeKey = completedAt ? `${completedAt}_${score}` : `attempt_${Math.random()}`;
+      if (!seen.has(dedupeKey)) {
+        seen.add(dedupeKey);
+        merged.push({
+          score,
+          completedAt: completedAt || new Date().toISOString(),
+        });
+      }
+    }
+  }
+
+  // Sort chronologically ascending
+  merged.sort((a, b) => new Date(a.completedAt).getTime() - new Date(b.completedAt).getTime());
+  return merged;
+}
+
+export function mergeTranslateHistories(...sources) {
+  const seen = new Set();
+  const merged = [];
+
+  for (const src of sources) {
+    if (!Array.isArray(src)) continue;
+    for (const item of src) {
+      if (!item || typeof item !== 'object') continue;
+      const sign = item.sign || item.letter || '';
+      const timestamp = item.timestamp || item.completedAt || item.date || '';
+      const dedupeKey = `${timestamp}_${sign}`;
+      if (sign && !seen.has(dedupeKey)) {
+        seen.add(dedupeKey);
+        merged.push({
+          sign,
+          timestamp: timestamp || new Date().toISOString(),
+        });
+      }
+    }
+  }
+
+  return merged;
+}
+
+export async function getLearningData(userOrId) {
+  const userId = resolveUserId(userOrId);
+  const emailKey = typeof userOrId === 'object' && userOrId?.email
+    ? userOrId.email.trim().toLowerCase().replace(/[^a-zA-Z0-9]/g, '_')
+    : null;
+
+  // Gather ALL local storage quiz history and best scores across all candidate and existing keys
+  let localBest = 0;
+  let allLocalQuizAttempts = [];
+  let allLocalTransAttempts = [];
+
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (!key) continue;
+      const lower = key.toLowerCase();
+
+      // Collect quiz attempts
+      if (lower.includes('quiz') && (lower.includes('hist') || lower.includes('attempt'))) {
+        try {
+          const raw = localStorage.getItem(key);
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            if (Array.isArray(parsed)) {
+              allLocalQuizAttempts.push(...parsed);
+            } else if (parsed && typeof parsed === 'object' && 'score' in parsed) {
+              allLocalQuizAttempts.push(parsed);
+            }
+          }
+        } catch {}
+      }
+
+      // Collect best scores
+      if (lower.includes('quiz') && (lower.includes('best') || lower.includes('score'))) {
+        try {
+          const val = Number(localStorage.getItem(key)) || 0;
+          if (val > localBest) localBest = val;
+        } catch {}
+      }
+
+      // Collect translate history
+      if (lower.includes('translate') && (lower.includes('hist') || lower.includes('attempt'))) {
+        try {
+          const raw = localStorage.getItem(key);
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            if (Array.isArray(parsed)) allLocalTransAttempts.push(...parsed);
+          }
+        } catch {}
+      }
+    }
+  } catch (err) {
+    console.warn('Storage scan note in getLearningData:', err);
+  }
+
+  let dbData = null;
+  try {
+    const database = await getDatabase();
+    dbData = await database.get('learningData', userId);
+  } catch (err) {
+    console.warn('Could not read learningData from IndexedDB:', err);
+  }
+
+  const result = dbData ?? createEmptyLearningData(userId);
+
+  // Seamlessly merge IndexedDB and localStorage
+  result.quizHistory = mergeQuizHistories(result.quizHistory, allLocalQuizAttempts);
+  result.translateHistory = mergeTranslateHistories(result.translateHistory, allLocalTransAttempts);
+
+  const maxInHistory = result.quizHistory.reduce((max, item) => Math.max(max, Number(item?.score) || 0), 0);
+  result.quizBestScore = Math.max(result.quizBestScore || 0, localBest, maxInHistory);
+
+  return result;
+}
+
+export async function saveQuizBestScore(userOrId, score) {
+  const userId = resolveUserId(userOrId);
+  const parsedScore = Number(score) || 0;
+  if (!Number.isFinite(parsedScore) || parsedScore < 0) {
     throw new Error('Quiz best score must be a non-negative number.');
   }
 
-  const database = await getDatabase();
-  const transaction = database.transaction('learningData', 'readwrite');
-  const store = transaction.objectStore('learningData');
-  const current = (await store.get(userId)) ?? createEmptyLearningData(userId);
-  const updated = {
-    ...current,
-    quizBestScore: Math.max(current.quizBestScore, score),
-    updatedAt: new Date().toISOString(),
-  };
-  await store.put(updated);
-  await transaction.done;
-  return updated.quizBestScore;
+  // Mirror synchronously to localStorage
+  try {
+    const key = `handspeak_quiz_best_${userId}`;
+    const prev = Number(localStorage.getItem(key)) || 0;
+    const finalScore = Math.max(prev, parsedScore);
+    localStorage.setItem(key, String(finalScore));
+    localStorage.setItem('speedQuizBest', String(finalScore));
+    localStorage.setItem('handspeak_quiz_best', String(finalScore));
+  } catch {}
+
+  try {
+    const database = await getDatabase();
+    const transaction = database.transaction('learningData', 'readwrite');
+    const store = transaction.objectStore('learningData');
+    const current = (await store.get(userId)) ?? createEmptyLearningData(userId);
+    const updated = {
+      ...current,
+      quizBestScore: Math.max(current.quizBestScore, parsedScore),
+      updatedAt: new Date().toISOString(),
+    };
+    await store.put(updated);
+    await transaction.done;
+    return updated.quizBestScore;
+  } catch (err) {
+    console.warn('Could not save quiz best score to IndexedDB:', err);
+    return parsedScore;
+  }
 }
 
-export async function loadQuizBestScore(userId) {
-  const learningData = await getLearningData(userId);
-  let legacyScore;
+export async function recordQuizCompletion(userOrId, score) {
+  const userId = resolveUserId(userOrId);
+  const emailKey = typeof userOrId === 'object' && userOrId?.email
+    ? userOrId.email.trim().toLowerCase().replace(/[^a-zA-Z0-9]/g, '_')
+    : null;
 
+  const parsedScore = Number(score) || 0;
+  const now = new Date().toISOString();
+  const newAttempt = { score: parsedScore, completedAt: now };
+
+  let newBest = parsedScore;
+
+  // 1. Synchronously persist to localStorage across all candidate keys
   try {
-    const legacyValue = localStorage.getItem(LEGACY_QUIZ_BEST_KEY);
-    if (legacyValue !== null) {
-      const parsed = Number(legacyValue);
-      if (Number.isFinite(parsed) && parsed >= 0) legacyScore = parsed;
+    const bestKeys = [
+      `handspeak_quiz_best_${userId}`,
+      emailKey ? `handspeak_quiz_best_usr_${emailKey}` : null,
+      'speedQuizBest',
+      'handspeak_quiz_best',
+      'handspeak_quiz_best_usr_guest',
+    ].filter(Boolean);
+
+    for (const bk of bestKeys) {
+      const prev = Number(localStorage.getItem(bk)) || 0;
+      newBest = Math.max(prev, newBest);
+      localStorage.setItem(bk, String(newBest));
     }
-  } catch (error) {
-    console.warn('Could not read the previous Speed Quiz score from localStorage.', error);
+
+    const histKeys = [
+      `handspeak_quiz_history_${userId}`,
+      `handspeak_quizHistory_${userId}`,
+      emailKey ? `handspeak_quiz_history_usr_${emailKey}` : null,
+      'handspeak_quiz_history',
+      'speedQuizHistory',
+      'handspeak_quiz_history_usr_guest',
+    ].filter(Boolean);
+
+    let existingHist = [];
+    for (const hk of histKeys) {
+      const raw = localStorage.getItem(hk);
+      if (raw) {
+        try {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed) && parsed.length > existingHist.length) {
+            existingHist = parsed;
+          }
+        } catch {}
+      }
+    }
+
+    const updatedHist = [...existingHist, newAttempt];
+    for (const hk of histKeys) {
+      localStorage.setItem(hk, JSON.stringify(updatedHist));
+    }
+
+    // Trigger event for immediate dashboard updates
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('handspeak_quiz_updated', {
+        detail: { score: parsedScore, completedAt: now, best: newBest }
+      }));
+    }
+  } catch (err) {
+    console.warn('Could not save quiz completion to localStorage:', err);
   }
 
-  if (legacyScore === undefined) return learningData.quizBestScore;
-
-  const migratedScore = await saveQuizBestScore(userId, legacyScore);
+  // 2. Atomically persist to IndexedDB in a single transaction
   try {
-    localStorage.removeItem(LEGACY_QUIZ_BEST_KEY);
-  } catch (error) {
-    console.warn('Could not remove the migrated Speed Quiz score from localStorage.', error);
+    const database = await getDatabase();
+    const transaction = database.transaction('learningData', 'readwrite');
+    const store = transaction.objectStore('learningData');
+    const current = (await store.get(userId)) ?? createEmptyLearningData(userId);
+    const finalBest = Math.max(current.quizBestScore || 0, newBest);
+    const finalHist = [...(current.quizHistory || []), newAttempt];
+
+    const updated = {
+      ...current,
+      quizBestScore: finalBest,
+      quizHistory: finalHist,
+      updatedAt: now,
+    };
+    await store.put(updated);
+    await transaction.done;
+    return { bestScore: finalBest, quizHistory: finalHist };
+  } catch (err) {
+    console.warn('Could not save quiz completion to IndexedDB:', err);
+    return { bestScore: newBest, quizHistory: [newAttempt] };
   }
-  return migratedScore;
+}
+
+export async function loadQuizBestScore(userOrId) {
+  const userId = resolveUserId(userOrId);
+  const emailKey = typeof userOrId === 'object' && userOrId?.email
+    ? userOrId.email.trim().toLowerCase().replace(/[^a-zA-Z0-9]/g, '_')
+    : null;
+
+  let localBest = 0;
+  const bestKeys = [
+    `handspeak_quiz_best_${userId}`,
+    emailKey ? `handspeak_quiz_best_usr_${emailKey}` : null,
+    'speedQuizBest',
+    'handspeak_quiz_best_usr_guest',
+  ].filter(Boolean);
+
+  for (const bk of bestKeys) {
+    try {
+      const val = localStorage.getItem(bk);
+      if (val !== null) {
+        localBest = Math.max(localBest, Number(val) || 0);
+      }
+    } catch {}
+  }
+
+  try {
+    const learningData = await getLearningData(userId);
+    const best = Math.max(localBest, learningData?.quizBestScore || 0);
+    return best;
+  } catch {
+    return localBest;
+  }
 }
 
 export async function recordLearningHistory(userId, historyKey, record) {
@@ -155,17 +398,31 @@ export async function recordLearningHistory(userId, historyKey, record) {
     throw new Error(`Unsupported learning history collection: ${historyKey}`);
   }
 
-  const database = await getDatabase();
-  const transaction = database.transaction('learningData', 'readwrite');
-  const store = transaction.objectStore('learningData');
-  const current = (await store.get(userId)) ?? createEmptyLearningData(userId);
-  const updated = {
-    ...current,
-    [historyKey]: [...current[historyKey], record],
-    updatedAt: new Date().toISOString(),
-  };
-  await store.put(updated);
-  await transaction.done;
+  // Mirror to localStorage
+  try {
+    const storageKey = `handspeak_${historyKey}_${userId}`;
+    const existing = JSON.parse(localStorage.getItem(storageKey) || '[]');
+    const updated = [...existing, record];
+    localStorage.setItem(storageKey, JSON.stringify(updated));
+  } catch (err) {
+    console.warn('Could not mirror learning history to localStorage:', err);
+  }
+
+  try {
+    const database = await getDatabase();
+    const transaction = database.transaction('learningData', 'readwrite');
+    const store = transaction.objectStore('learningData');
+    const current = (await store.get(userId)) ?? createEmptyLearningData(userId);
+    const updated = {
+      ...current,
+      [historyKey]: [...(current[historyKey] || []), record],
+      updatedAt: new Date().toISOString(),
+    };
+    await store.put(updated);
+    await transaction.done;
+  } catch (err) {
+    console.warn(`Could not save ${historyKey} to IndexedDB:`, err);
+  }
 }
 
 export async function setLearningProgress(userId, progressKey, value) {

@@ -172,3 +172,23 @@
   text-align: center;
   color: var(--color-text-tertiary);
 }
+
+.finishBtn {
+  margin-top: var(--space-4);
+  width: 100%;
+  padding: 0.65rem;
+  background: transparent;
+  color: var(--color-text-secondary);
+  border: 1px dashed var(--color-border-strong);
+  border-radius: var(--radius-md);
+  font-size: 0.95rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.finishBtn:hover {
+  background: var(--color-surface-2);
+  color: var(--color-text-primary);
+  border-style: solid;
+}

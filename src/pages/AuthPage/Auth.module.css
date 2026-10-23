@@ -55,6 +55,18 @@
   text-align: center;
 }
 
+.successBanner {
+  background: rgba(16, 185, 129, 0.12);
+  color: #059669;
+  border: 1px solid rgba(16, 185, 129, 0.25);
+  padding: 0.75rem;
+  border-radius: 8px;
+  margin-bottom: 1.5rem;
+  font-size: 0.9rem;
+  text-align: center;
+  line-height: 1.4;
+}
+
 .offlineBanner {
   background: var(--color-surface-2);
   color: var(--color-text-secondary);
@@ -118,6 +130,40 @@
 .submitBtn:disabled {
   opacity: 0.7;
   cursor: not-allowed;
+}
+
+.forgotBtn {
+  background: none;
+  border: none;
+  color: var(--color-primary);
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 0;
+  text-decoration: underline;
+  transition: opacity 0.2s;
+}
+
+.forgotBtn:hover {
+  opacity: 0.8;
+}
+
+.backBtn {
+  background: none;
+  border: none;
+  color: var(--color-text-muted);
+  font-size: 0.9rem;
+  cursor: pointer;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  margin-bottom: 1rem;
+  transition: color 0.2s;
+}
+
+.backBtn:hover {
+  color: var(--color-text);
 }
 
 .toggleText {
