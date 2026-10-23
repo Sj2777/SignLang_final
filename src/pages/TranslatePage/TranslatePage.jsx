@@ -7,8 +7,31 @@ import { loadLocalSignInference } from '../../lib/localSignInference';
 import { extractFeatures } from '../../lib/signFeatures';
 import styles from './TranslatePage.module.css';
 
-const API_BASE = import.meta.env.VITE_API_BASE?.replace(/\/$/, '') || '';
-const WS_URL = import.meta.env.VITE_WS_URL || '';
+const resolveApiBase = () => {
+  if (import.meta.env.VITE_API_BASE) {
+    return import.meta.env.VITE_API_BASE.replace(/\/$/, '');
+  }
+  // When running in production on a unified server (Render / Docker), default to the origin
+  if (typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+    return window.location.origin;
+  }
+  return '';
+};
+
+const resolveWsUrl = () => {
+  if (import.meta.env.VITE_WS_URL) {
+    return import.meta.env.VITE_WS_URL;
+  }
+  // When running in production on a unified server, connect to wss://<domain>/ws/stream
+  if (typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+    const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    return `${proto}//${window.location.host}/ws/stream`;
+  }
+  return '';
+};
+
+const API_BASE = resolveApiBase();
+const WS_URL = resolveWsUrl();
 
 const DEFAULT_LABELS = {
   "A": { "english": "A", "marathi": "ए", "phonetic": "Ae", "example_mr": "एक (One)" },
