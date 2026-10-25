@@ -66,7 +66,7 @@ export function getPlatformLiveStats() {
       organizations: orgCount,
       totalQuizzes,
       signsTranslated: totalSignsTranslated,
-      vocabularyClasses: 33, // 26 Letters (A-Z) + 7 Regional Indian Word Signs
+      vocabularyClasses: 36, // 26 Letters (A-Z) + 7 Regional Indian Word Signs
       communityTotal: Math.max(1, learnerCount + orgCount),
     };
   } catch (err) {
