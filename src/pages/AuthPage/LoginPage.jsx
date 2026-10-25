@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { isValidEmail, validatePassword, isValidIndianPhone } from '../../lib/crypto';
 import styles from './Auth.module.css';
 
 const HandShakeSVG = () => (
@@ -21,8 +22,8 @@ const GroupSVG = () => (
 export default function LoginPage() {
   const [isSignUp, setIsSignUp] = useState(true);
   const [isForgotPassword, setIsForgotPassword] = useState(false);
-  const [accountType, setAccountType] = useState(null); // null means hasn't chosen yet
-  
+  const [accountType, setAccountType] = useState(null); // 'learner' | 'organization' | null
+
   // Form fields
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -32,10 +33,15 @@ export default function LoginPage() {
   const [contactNum, setContactNum] = useState(''); // Org only
   const [address, setAddress] = useState(''); // Org only
 
+  // Mobile verification state for organizations
+  const [isVerifyingOtp, setIsVerifyingOtp] = useState(false);
+  const [generatedOtp, setGeneratedOtp] = useState('');
+  const [enteredOtp, setEnteredOtp] = useState('');
+
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
   const [loading, setLoading] = useState(false);
-  
+
   const { user, signIn, signUp, resetPassword, isOffline, authMessage, clearAuthMessage } = useAuth();
   const navigate = useNavigate();
 
@@ -49,7 +55,8 @@ export default function LoginPage() {
   const handleToggleMode = () => {
     setIsSignUp(!isSignUp);
     setIsForgotPassword(false);
-    setAccountType(null); // Reset selection when switching modes
+    setIsVerifyingOtp(false);
+    setAccountType(null);
     setError('');
     setSuccessMsg('');
     clearAuthMessage();
@@ -57,38 +64,89 @@ export default function LoginPage() {
 
   const handleSelectAccountType = (type) => {
     setAccountType(type);
+    setIsVerifyingOtp(false);
     setError('');
     setSuccessMsg('');
     clearAuthMessage();
+  };
+
+  // Real-time password requirement tests
+  const pwdChecks = {
+    length: password.length >= 8,
+    upper: /[A-Z]/.test(password),
+    number: /[0-9]/.test(password),
+    special: /[^A-Za-z0-9]/.test(password),
+  };
+
+  const validateInputs = () => {
+    if (!email.trim()) throw new Error('Please enter your email address.');
+    if (!isValidEmail(email)) {
+      throw new Error('Please enter a valid email address (e.g. name@example.com).');
+    }
+
+    if (isSignUp) {
+      if (!name.trim()) {
+        throw new Error(accountType === 'organization' ? 'Please enter your organization name.' : 'Please enter your name.');
+      }
+
+      const pwdResult = validatePassword(password);
+      if (!pwdResult.valid) {
+        throw new Error(pwdResult.message);
+      }
+
+      if (accountType === 'organization') {
+        if (!contactNum.trim() || !isValidIndianPhone(contactNum)) {
+          throw new Error('Please enter a valid 10-digit mobile number (e.g. +91 98765 43210).');
+        }
+        if (!address.trim() || address.trim().length < 5) {
+          throw new Error('Please enter a complete organization address (at least 5 characters).');
+        }
+      }
+    } else {
+      if (!password) throw new Error('Please enter your password.');
+    }
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
     setSuccessMsg('');
-    if (isOffline || !navigator.onLine) {
-      setError('You need an internet connection for your first login or sign-up on this device.');
+
+    try {
+      validateInputs();
+    } catch (err) {
+      setError(err.message);
       return;
     }
+
+    // Organization Mobile Verification Gate
+    if (isSignUp && accountType === 'organization' && !isVerifyingOtp) {
+      const demoCode = '482910';
+      setGeneratedOtp(demoCode);
+      setIsVerifyingOtp(true);
+      setSuccessMsg(`📱 Verification code sent to ${contactNum}. Use Demo Code: ${demoCode}`);
+      return;
+    }
+
     setLoading(true);
-    
+
     try {
       if (isSignUp) {
-        if (!accountType) throw new Error("Please select an account type first.");
-        
         const metaData = {
           account_type: accountType,
-          name: name,
+          name: name.trim(),
         };
-        
+
         if (accountType === 'organization') {
-          metaData.contact_num = contactNum;
-          metaData.address = address;
+          metaData.contact_num = contactNum.trim();
+          metaData.address = address.trim();
+          metaData.phone_verified = true;
+          metaData.org_status = 'pending'; // Requires approval before public listing
         }
 
         const { error } = await signUp(email, password, metaData);
         if (error) throw error;
-        
+
         navigate('/dashboard', { replace: true });
       } else {
         const { error } = await signIn(email, password);
@@ -102,10 +160,53 @@ export default function LoginPage() {
     }
   };
 
+  const handleVerifyOtp = async (e) => {
+    e.preventDefault();
+    setError('');
+    setSuccessMsg('');
+
+    if (!enteredOtp || enteredOtp.trim() !== generatedOtp) {
+      setError(`Invalid verification code. Please enter ${generatedOtp} to complete mobile verification.`);
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const metaData = {
+        account_type: 'organization',
+        name: name.trim(),
+        contact_num: contactNum.trim(),
+        address: address.trim(),
+        phone_verified: true,
+        org_status: 'pending',
+      };
+
+      const { error } = await signUp(email, password, metaData);
+      if (error) throw error;
+
+      navigate('/dashboard', { replace: true });
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleResetPassword = async (e) => {
     e.preventDefault();
     setError('');
     setSuccessMsg('');
+
+    if (!isValidEmail(email)) {
+      setError('Please enter a valid email address.');
+      return;
+    }
+
+    const pwdResult = validatePassword(newPassword);
+    if (!pwdResult.valid) {
+      setError(pwdResult.message);
+      return;
+    }
 
     if (newPassword !== confirmPassword) {
       setError('New passwords do not match. Please re-enter.');
@@ -129,11 +230,11 @@ export default function LoginPage() {
     }
   };
 
-  // Determine if we show the large Selection Cards
   const showSelectionCards = isSignUp && !accountType;
 
   const getHeading = () => {
     if (isForgotPassword) return 'Reset Password';
+    if (isVerifyingOtp) return 'Verify Mobile Number';
     if (isSignUp) {
       return accountType
         ? `Sign Up as ${accountType === 'learner' ? 'Learner' : 'Organization'}`
@@ -143,7 +244,8 @@ export default function LoginPage() {
   };
 
   const getSubtitle = () => {
-    if (isForgotPassword) return 'Enter your account email and choose a new password.';
+    if (isForgotPassword) return 'Enter your account email and choose a strong password.';
+    if (isVerifyingOtp) return `Enter the SMS verification code sent to ${contactNum}.`;
     if (isSignUp) {
       return accountType
         ? 'Fill in your details below to create your account.'
@@ -155,16 +257,14 @@ export default function LoginPage() {
   return (
     <div className={styles.authContainer}>
       <Link to="/" className={styles.backLink}>← Back to Home</Link>
-      
-      {/* We make the card wider if showing selection cards */}
+
       <div className={styles.authCard} style={showSelectionCards ? { maxWidth: '700px' } : {}}>
         <h2>{getHeading()}</h2>
-        
         <p className={styles.subtitle}>{getSubtitle()}</p>
 
         {isOffline && (
           <div className={styles.offlineBanner} role="status">
-            You’re offline. Previously signed-in users can continue on this device; your first login or sign-up requires internet.
+            You’re offline. HandSpeak is running in offline mode. Your credentials are securely cached on this device.
           </div>
         )}
         {successMsg && (
@@ -178,11 +278,11 @@ export default function LoginPage() {
           </div>
         )}
 
+        {/* 1. FORGOT PASSWORD VIEW */}
         {isForgotPassword ? (
-          /* Forgot / Reset Password Form */
           <form onSubmit={handleResetPassword} className={styles.form}>
-            <button 
-              type="button" 
+            <button
+              type="button"
               onClick={() => { setIsForgotPassword(false); setError(''); setSuccessMsg(''); }}
               className={styles.backBtn}
             >
@@ -191,9 +291,9 @@ export default function LoginPage() {
 
             <div className={styles.inputGroup}>
               <label>Email Address</label>
-              <input 
-                type="email" 
-                required 
+              <input
+                type="email"
+                required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="you@example.com"
@@ -201,23 +301,21 @@ export default function LoginPage() {
             </div>
 
             <div className={styles.inputGroup}>
-              <label>New Password</label>
-              <input 
-                type="password" 
-                required 
-                minLength={6}
+              <label>New Strong Password</label>
+              <input
+                type="password"
+                required
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
-                placeholder="At least 6 characters"
+                placeholder="Min 8 chars, 1 uppercase, 1 digit, 1 symbol"
               />
             </div>
 
             <div className={styles.inputGroup}>
               <label>Confirm New Password</label>
-              <input 
-                type="password" 
-                required 
-                minLength={6}
+              <input
+                type="password"
+                required
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 placeholder="Re-enter new password"
@@ -228,72 +326,111 @@ export default function LoginPage() {
               {loading ? 'Updating Password...' : 'Update Password'}
             </button>
           </form>
+        ) : isVerifyingOtp ? (
+          /* 2. ORGANIZATION MOBILE OTP VERIFICATION STEP */
+          <form onSubmit={handleVerifyOtp} className={styles.form}>
+            <div className={styles.otpBox}>
+              <p className={styles.otpHint}>
+                Security Requirement: Accredited organizations must verify their official contact number before onboarding.
+              </p>
+
+              <div className={styles.inputGroup}>
+                <label>6-Digit SMS Verification Code</label>
+                <input
+                  type="text"
+                  maxLength={6}
+                  required
+                  className={styles.otpInput}
+                  value={enteredOtp}
+                  onChange={(e) => setEnteredOtp(e.target.value.replace(/\D/g, ''))}
+                  placeholder="------"
+                  autoFocus
+                />
+              </div>
+
+              <div>
+                <span className={styles.demoOtpBadge}>Demo OTP Code: {generatedOtp}</span>
+              </div>
+            </div>
+
+            <button type="submit" disabled={loading || enteredOtp.length < 6} className={styles.submitBtn}>
+              {loading ? 'Verifying Mobile...' : 'Verify Mobile & Create Account'}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setIsVerifyingOtp(false)}
+              className={styles.backBtn}
+              style={{ marginTop: '0.5rem' }}
+            >
+              ← Edit Details
+            </button>
+          </form>
         ) : showSelectionCards ? (
+          /* 3. ACCOUNT TYPE PICKER */
           <div className={styles.cardSelectionGrid}>
             <div className={styles.selectionCard} onClick={() => handleSelectAccountType('learner')}>
               <div className={styles.iconWrap}>
                 <HandShakeSVG />
               </div>
               <h3>Learner</h3>
-              <p>For individuals learning sign language.</p>
+              <p>For individuals learning sign language and taking quizzes.</p>
             </div>
-            
+
             <div className={styles.selectionCard} onClick={() => handleSelectAccountType('organization')}>
               <div className={styles.iconWrap} style={{ background: 'rgba(244, 63, 94, 0.1)', color: 'var(--color-accent)' }}>
                 <GroupSVG />
               </div>
               <h3>Organization</h3>
-              <p>For schools, agencies, and Deaf advocacy groups.</p>
+              <p>For verified schools, NGOs, and Deaf community chapters.</p>
             </div>
           </div>
         ) : (
-          <form onSubmit={handleSubmit} className={styles.form}>
-            
-            {/* Show an easy way to go back to selection if signing up */}
+          /* 4. MAIN SIGNUP / LOGIN FORM */
+          <form onSubmit={handleSubmit} className={styles.form} noValidate>
             {isSignUp && accountType && (
-              <button 
-                type="button" 
-                onClick={() => setAccountType(null)} 
+              <button
+                type="button"
+                onClick={() => setAccountType(null)}
                 className={styles.backBtn}
               >
                 ← Change Account Type
               </button>
             )}
 
-            {/* Sign Up Fields */}
             {isSignUp && (
               <>
                 <div className={styles.inputGroup}>
                   <label>{accountType === 'organization' ? 'Organization Name' : 'Full Name'}</label>
-                  <input 
-                    type="text" 
-                    required 
+                  <input
+                    type="text"
+                    required
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    placeholder={accountType === 'organization' ? 'Acme Corp' : 'John Doe'}
+                    placeholder={accountType === 'organization' ? 'e.g. Deaf Welfare Association' : 'e.g. John Doe'}
                   />
                 </div>
 
                 {accountType === 'organization' && (
                   <>
                     <div className={styles.inputGroup}>
-                      <label>Contact Number</label>
-                      <input 
-                        type="tel" 
-                        required 
+                      <label>Official Contact Number (Mobile / SMS)</label>
+                      <input
+                        type="tel"
+                        required
                         value={contactNum}
                         onChange={(e) => setContactNum(e.target.value)}
-                        placeholder="+1 234 567 890"
+                        placeholder="+91 98765 43210"
                       />
                     </div>
                     <div className={styles.inputGroup}>
-                      <label>Address</label>
-                      <input 
-                        type="text" 
-                        required 
+                      <label>Headquarters / Registered Address</label>
+                      <input
+                        type="text"
+                        required
                         value={address}
                         onChange={(e) => setAddress(e.target.value)}
-                        placeholder="123 Main St, City"
+                        placeholder="e.g. 12/A, Institutional Area, City, State"
                       />
                     </div>
                   </>
@@ -301,34 +438,57 @@ export default function LoginPage() {
               </>
             )}
 
-            {/* Common Fields */}
             <div className={styles.inputGroup}>
               <label>Email Address</label>
-              <input 
-                type="email" 
-                required 
+              <input
+                type="email"
+                required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="you@example.com"
               />
             </div>
-            
+
             <div className={styles.inputGroup}>
               <label>Password</label>
-              <input 
-                type="password" 
-                required 
+              <input
+                type="password"
+                required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
               />
+
+              {/* Real-time strong password rules checklist during sign-up */}
+              {isSignUp && (
+                <div className={styles.pwdRules}>
+                  <span style={{ fontWeight: 600, color: 'var(--color-text)', marginBottom: '0.15rem' }}>
+                    Password Strength Requirements:
+                  </span>
+                  <div className={`${styles.ruleItem} ${pwdChecks.length ? styles.ruleValid : ''}`}>
+                    <span>{pwdChecks.length ? '✓' : '○'}</span>
+                    <span>At least 8 characters</span>
+                  </div>
+                  <div className={`${styles.ruleItem} ${pwdChecks.upper ? styles.ruleValid : ''}`}>
+                    <span>{pwdChecks.upper ? '✓' : '○'}</span>
+                    <span>At least 1 uppercase letter (A-Z)</span>
+                  </div>
+                  <div className={`${styles.ruleItem} ${pwdChecks.number ? styles.ruleValid : ''}`}>
+                    <span>{pwdChecks.number ? '✓' : '○'}</span>
+                    <span>At least 1 digit (0-9)</span>
+                  </div>
+                  <div className={`${styles.ruleItem} ${pwdChecks.special ? styles.ruleValid : ''}`}>
+                    <span>{pwdChecks.special ? '✓' : '○'}</span>
+                    <span>At least 1 special character (!, @, #, etc.)</span>
+                  </div>
+                </div>
+              )}
             </div>
 
-            {/* Forgot password button (shown in Login mode) */}
             {!isSignUp && (
               <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '-0.5rem', marginBottom: '0.25rem' }}>
-                <button 
-                  type="button" 
+                <button
+                  type="button"
                   onClick={() => { setIsForgotPassword(true); setError(''); setSuccessMsg(''); }}
                   className={styles.forgotBtn}
                 >
@@ -337,17 +497,17 @@ export default function LoginPage() {
               </div>
             )}
 
-            <button type="submit" disabled={loading || isOffline} className={styles.submitBtn}>
-              {loading ? 'Processing...' : (isSignUp ? 'Create Account' : 'Log In')}
+            <button type="submit" disabled={loading} className={styles.submitBtn}>
+              {loading ? 'Processing...' : (isSignUp ? (accountType === 'organization' ? 'Continue to Mobile Verification →' : 'Create Account') : 'Log In')}
             </button>
           </form>
         )}
 
-        {!isForgotPassword && (
+        {!isForgotPassword && !isVerifyingOtp && (
           <div className={styles.toggleText}>
             {isSignUp ? 'Already have an account?' : "Don't have an account?"}
-            <button 
-              type="button" 
+            <button
+              type="button"
               onClick={handleToggleMode}
               className={styles.toggleBtn}
             >

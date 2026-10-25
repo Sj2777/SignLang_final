@@ -36,7 +36,11 @@ export default function OrganizationsPage() {
   useEffect(() => {
     loadData();
     window.addEventListener('storage', loadData);
-    return () => window.removeEventListener('storage', loadData);
+    window.addEventListener('handspeak_org_updated', loadData);
+    return () => {
+      window.removeEventListener('storage', loadData);
+      window.removeEventListener('handspeak_org_updated', loadData);
+    };
   }, [userId]);
 
   const handleRegisterOrg = (org) => {
@@ -46,7 +50,12 @@ export default function OrganizationsPage() {
         email: activeUser?.email,
       });
       setLearnerOrg(membership);
-      setActionNotice(`Successfully registered with ${org.name}! Your learning progress will now be shared with their mentors.`);
+      const isAutoApproved = membership.status === 'approved';
+      setActionNotice(
+        isAutoApproved
+          ? `Successfully registered with ${org.name}! Your learning progress will now be shared with their mentors.`
+          : `Registration request submitted to ${org.name}! The organisation mentor will review and approve your membership.`
+      );
     } catch (err) {
       console.error('Registration failed:', err);
     }
@@ -99,22 +108,42 @@ export default function OrganizationsPage() {
       )}
 
       {learnerOrg && (
-        <div className={styles.affiliationBanner}>
-          <div className={styles.affiliationText}>
-            <span style={{ fontSize: '1.5rem' }}>🏛️</span>
-            <div>
-              <strong>Enrolled Member:</strong> You are currently registered with{' '}
-              <strong>{learnerOrg.orgName}</strong>
+        learnerOrg.status === 'pending' ? (
+          <div className={styles.affiliationBanner} style={{ background: '#FEF3C7', borderColor: '#FDE68A' }}>
+            <div className={styles.affiliationText} style={{ color: '#92400E' }}>
+              <span style={{ fontSize: '1.5rem' }}>⏳</span>
+              <div>
+                <strong>Request Pending:</strong> You applied to join{' '}
+                <strong>{learnerOrg.orgName}</strong>. Awaiting mentor approval.
+              </div>
             </div>
+            <button
+              type="button"
+              className={styles.affiliationAction}
+              style={{ color: '#92400E', borderColor: '#FDE68A' }}
+              onClick={() => handleUnregisterOrg(learnerOrg.orgId)}
+            >
+              Cancel Request
+            </button>
           </div>
-          <button
-            type="button"
-            className={styles.affiliationAction}
-            onClick={() => handleUnregisterOrg(learnerOrg.orgId)}
-          >
-            Leave Organisation
-          </button>
-        </div>
+        ) : (
+          <div className={styles.affiliationBanner}>
+            <div className={styles.affiliationText}>
+              <span style={{ fontSize: '1.5rem' }}>🏛️</span>
+              <div>
+                <strong>Enrolled Member:</strong> You are currently registered with{' '}
+                <strong>{learnerOrg.orgName}</strong>
+              </div>
+            </div>
+            <button
+              type="button"
+              className={styles.affiliationAction}
+              onClick={() => handleUnregisterOrg(learnerOrg.orgId)}
+            >
+              Leave Organisation
+            </button>
+          </div>
+        )
       )}
 
       <div className={styles.searchBarContainer}>
@@ -131,11 +160,13 @@ export default function OrganizationsPage() {
         {filteredOrgs.length > 0 ? (
           filteredOrgs.map((org) => {
             const isMember = learnerOrg?.orgId === org.id;
+            const isPending = isMember && learnerOrg?.status === 'pending';
+            const isApproved = isMember && learnerOrg?.status === 'approved';
 
             return (
               <div
                 key={org.id}
-                className={`${styles.orgCard} ${isMember ? styles.orgCardRegistered : ''}`}
+                className={`${styles.orgCard} ${isApproved ? styles.orgCardRegistered : ''}`}
               >
                 <div className={styles.orgCardTop}>
                   <div className={styles.orgHeaderRow}>
@@ -171,7 +202,7 @@ export default function OrganizationsPage() {
                 </div>
 
                 <div>
-                  {isMember ? (
+                  {isApproved ? (
                     <button
                       type="button"
                       className={styles.orgRegisteredBtn}
@@ -182,13 +213,25 @@ export default function OrganizationsPage() {
                         (Click to Leave)
                       </span>
                     </button>
+                  ) : isPending ? (
+                    <button
+                      type="button"
+                      className={styles.orgRegisteredBtn}
+                      style={{ background: '#FEF3C7', color: '#92400E', borderColor: '#FDE68A' }}
+                      onClick={() => handleUnregisterOrg(org.id)}
+                    >
+                      <span>Pending Approval ⏳</span>
+                      <span style={{ fontSize: '0.85rem', opacity: 0.85 }}>
+                        (Click to Cancel)
+                      </span>
+                    </button>
                   ) : (
                     <button
                       type="button"
                       className={styles.orgRegisterBtn}
                       onClick={() => handleRegisterOrg(org)}
                     >
-                      <span>Register to Organisation</span>
+                      <span>Request to Register</span>
                       <span>➔</span>
                     </button>
                   )}

@@ -12,7 +12,9 @@ import {
   getLearnerMembership,
   registerLearnerToOrg,
   unregisterLearnerFromOrg,
-  getOrgMemberCount,
+  getOrgMemberRequests,
+  approveMemberRequest,
+  rejectMemberRequest,
 } from '../../lib/organizations';
 import styles from './DashboardPage.module.css';
 
@@ -122,13 +124,9 @@ export default function DashboardPage() {
     loaded: false,
   });
 
-  const [communityStats, setCommunityStats] = useState({
-    totalLearners: 0,
-    totalQuizzes: 0,
-  });
-
   const [organizations, setOrganizations] = useState([]);
   const [learnerOrg, setLearnerOrg] = useState(null);
+  const [orgRequests, setOrgRequests] = useState([]);
   const [actionNotice, setActionNotice] = useState('');
 
   const userId = activeUser?.id || (activeUser?.email ? 'usr_' + activeUser.email.trim().toLowerCase().replace(/[^a-zA-Z0-9]/g, '_') : 'guest');
@@ -141,7 +139,12 @@ export default function DashboardPage() {
         email: activeUser?.email,
       });
       setLearnerOrg(membership);
-      setActionNotice(`You have successfully registered with ${org.name}! Your learning progress will now be shared with their mentors.`);
+      const isAutoApproved = membership.status === 'approved';
+      setActionNotice(
+        isAutoApproved
+          ? `You have joined ${org.name} as a registered member!`
+          : `Registration request sent to ${org.name}! The organization mentor will review and approve your request.`
+      );
     } catch (err) {
       console.error('Registration failed:', err);
     }
@@ -151,9 +154,29 @@ export default function DashboardPage() {
     try {
       unregisterLearnerFromOrg(userId, orgId);
       setLearnerOrg(null);
-      setActionNotice('You have unregistered from this organisation.');
+      setActionNotice('Your affiliation with this organization has been removed.');
     } catch (err) {
       console.error('Unregister failed:', err);
+    }
+  };
+
+  const handleApproveLearner = (learnerId) => {
+    try {
+      approveMemberRequest(userId, learnerId);
+      setOrgRequests(getOrgMemberRequests(userId));
+      setActionNotice('Learner request approved successfully! They are now an active member.');
+    } catch (err) {
+      console.error('Approval failed:', err);
+    }
+  };
+
+  const handleRejectLearner = (learnerId) => {
+    try {
+      rejectMemberRequest(userId, learnerId);
+      setOrgRequests(getOrgMemberRequests(userId));
+      setActionNotice('Learner request updated.');
+    } catch (err) {
+      console.error('Rejection failed:', err);
     }
   };
 
@@ -163,62 +186,55 @@ export default function DashboardPage() {
     setLearnerOrg(getLearnerMembership(userId));
 
     if (isOrg) {
-      try {
-        const myMemberCount = getOrgMemberCount(userId);
-        const accounts = JSON.parse(localStorage.getItem('handspeak_accounts') || '{}');
-        const learners = Object.values(accounts).filter(
-          (a) => a.user_metadata?.account_type !== 'organization'
-        ).length;
-        setCommunityStats({
-          totalLearners: Math.max(learners, myMemberCount, 1),
-          totalQuizzes: 48,
-        });
-      } catch {
-        setCommunityStats({ totalLearners: 1, totalQuizzes: 0 });
-      }
+      const requests = getOrgMemberRequests(userId);
+      setOrgRequests(requests);
       return;
     }
 
-    // 1. Immediate synchronous load from all localStorage keys
+    // Strict user-scoped localStorage read (NO cross-account leakage)
     let allLocalQuizAttempts = [];
     let allLocalTransAttempts = [];
     let localBest = 0;
 
     try {
-      for (let i = 0; i < localStorage.length; i++) {
-        const k = localStorage.key(i);
-        if (!k) continue;
-        const lower = k.toLowerCase();
+      const bestKeys = [
+        `handspeak_quiz_best_${userId}`,
+        emailKey ? `handspeak_quiz_best_usr_${emailKey}` : null,
+      ].filter(Boolean);
 
-        // Collect quiz attempts across all keys
-        if (lower.includes('quiz') && (lower.includes('hist') || lower.includes('attempt'))) {
+      for (const k of bestKeys) {
+        const val = Number(localStorage.getItem(k)) || 0;
+        if (val > localBest) localBest = val;
+      }
+
+      const histKeys = [
+        `handspeak_quiz_history_${userId}`,
+        `handspeak_quizHistory_${userId}`,
+        emailKey ? `handspeak_quiz_history_usr_${emailKey}` : null,
+      ].filter(Boolean);
+
+      for (const k of histKeys) {
+        const raw = localStorage.getItem(k);
+        if (raw) {
           try {
-            const raw = localStorage.getItem(k);
-            if (raw) {
-              const parsed = JSON.parse(raw);
-              if (Array.isArray(parsed)) {
-                allLocalQuizAttempts.push(...parsed);
-              } else if (parsed && typeof parsed === 'object' && 'score' in parsed) {
-                allLocalQuizAttempts.push(parsed);
-              }
-            }
+            const parsed = JSON.parse(raw);
+            if (Array.isArray(parsed)) allLocalQuizAttempts.push(...parsed);
           } catch {}
         }
+      }
 
-        // Collect best scores across all keys
-        if (lower.includes('quiz') && (lower.includes('best') || lower.includes('score'))) {
-          const val = Number(localStorage.getItem(k)) || 0;
-          if (val > localBest) localBest = val;
-        }
+      const transKeys = [
+        `handspeak_translateHistory_${userId}`,
+        `handspeak_translate_history_${userId}`,
+        emailKey ? `handspeak_translateHistory_usr_${emailKey}` : null,
+      ].filter(Boolean);
 
-        // Collect translate history
-        if (lower.includes('translate') && (lower.includes('hist') || lower.includes('attempt'))) {
+      for (const k of transKeys) {
+        const raw = localStorage.getItem(k);
+        if (raw) {
           try {
-            const raw = localStorage.getItem(k);
-            if (raw) {
-              const parsed = JSON.parse(raw);
-              if (Array.isArray(parsed)) allLocalTransAttempts.push(...parsed);
-            }
+            const parsed = JSON.parse(raw);
+            if (Array.isArray(parsed)) allLocalTransAttempts.push(...parsed);
           } catch {}
         }
       }
@@ -228,29 +244,27 @@ export default function DashboardPage() {
     const initialTrans = mergeTranslateHistories(allLocalTransAttempts);
     const maxInHistory = initialHistory.reduce((max, item) => Math.max(max, Number(item?.score) || 0), 0);
     const initialBest = Math.max(localBest, maxInHistory);
+    const quizCount = initialHistory.length;
+    const totalScore = initialHistory.reduce((sum, item) => sum + (Number(item?.score) || 0), 0);
+    const avgScore = quizCount > 0 ? Math.round(totalScore / quizCount) : 0;
+    const accuracy = quizCount > 0 ? Math.min(100, Math.round((avgScore / 15) * 100)) : 0;
+    const streak = calculateStreak([...initialHistory, ...initialTrans]);
+    const uniqueSigns = new Set(initialTrans.map((t) => t.sign).filter(Boolean));
+    const signsPracticed = uniqueSigns.size > 0 ? uniqueSigns.size : (initialBest > 0 ? Math.min(26, initialBest * 2) : 0);
 
-    if (initialHistory.length > 0 || initialBest > 0 || initialTrans.length > 0) {
-      const quizCount = initialHistory.length;
-      const totalScore = initialHistory.reduce((sum, item) => sum + (Number(item?.score) || 0), 0);
-      const avgScore = quizCount > 0 ? Math.round(totalScore / quizCount) : 0;
-      const accuracy = quizCount > 0 ? Math.min(100, Math.round((avgScore / 15) * 100)) : 0;
-      const streak = calculateStreak([...initialHistory, ...initialTrans]);
-      const uniqueSigns = new Set(initialTrans.map((t) => t.sign).filter(Boolean));
-      const signsPracticed = uniqueSigns.size > 0 ? uniqueSigns.size : (initialBest > 0 ? Math.min(26, initialBest * 2) : 0);
+    // Set initial synchronous user data immediately
+    setLearningStats({
+      bestScore: initialBest,
+      quizCount,
+      avgScore,
+      accuracy,
+      streak: Math.max(streak, quizCount > 0 ? 1 : 0),
+      signsPracticed,
+      recentQuizzes: [...initialHistory].slice(-4).reverse(),
+      loaded: true,
+    });
 
-      setLearningStats({
-        bestScore: initialBest,
-        quizCount,
-        avgScore,
-        accuracy,
-        streak: Math.max(streak, quizCount > 0 ? 1 : 0),
-        signsPracticed,
-        recentQuizzes: [...initialHistory].slice(-4).reverse(),
-        loaded: true,
-      });
-    }
-
-    // 2. Load and merge IndexedDB asynchronously
+    // Merge asynchronously from user-isolated IndexedDB
     Promise.all([
       getLearningData(activeUser || userId).catch(() => null),
       loadQuizBestScore(activeUser || userId).catch(() => initialBest),
@@ -259,26 +273,21 @@ export default function DashboardPage() {
       const translateHistory = mergeTranslateHistories(initialTrans, data?.translateHistory);
       const maxScore = history.reduce((max, item) => Math.max(max, Number(item?.score) || 0), 0);
       const effectiveBest = Math.max(bestScore || 0, initialBest, data?.quizBestScore || 0, maxScore);
-      const quizCount = history.length;
-      
-      const totalScore = history.reduce((sum, item) => sum + (Number(item?.score) || 0), 0);
-      const avgScore = quizCount > 0 ? Math.round(totalScore / quizCount) : 0;
-      const accuracy = quizCount > 0 ? Math.min(100, Math.round((avgScore / 15) * 100)) : 0;
-
-      const streak = calculateStreak([...history, ...translateHistory]);
-
-      const uniqueSigns = new Set([
-        ...translateHistory.map((t) => t.sign).filter(Boolean),
-      ]);
-      const signsPracticed = uniqueSigns.size > 0 ? uniqueSigns.size : (effectiveBest > 0 ? Math.min(26, effectiveBest * 2) : 0);
+      const finalCount = history.length;
+      const finalTotal = history.reduce((sum, item) => sum + (Number(item?.score) || 0), 0);
+      const finalAvg = finalCount > 0 ? Math.round(finalTotal / finalCount) : 0;
+      const finalAccuracy = finalCount > 0 ? Math.min(100, Math.round((finalAvg / 15) * 100)) : 0;
+      const finalStreak = calculateStreak([...history, ...translateHistory]);
+      const finalSigns = new Set(translateHistory.map((t) => t.sign).filter(Boolean));
+      const finalSignsCount = finalSigns.size > 0 ? finalSigns.size : (effectiveBest > 0 ? Math.min(26, effectiveBest * 2) : 0);
 
       setLearningStats({
         bestScore: effectiveBest,
-        quizCount,
-        avgScore,
-        accuracy,
-        streak: Math.max(streak, quizCount > 0 ? 1 : 0),
-        signsPracticed,
+        quizCount: finalCount,
+        avgScore: finalAvg,
+        accuracy: finalAccuracy,
+        streak: Math.max(finalStreak, finalCount > 0 ? 1 : 0),
+        signsPracticed: finalSignsCount,
         recentQuizzes: [...history].slice(-4).reverse(),
         loaded: true,
       });
@@ -286,25 +295,60 @@ export default function DashboardPage() {
   };
 
   useEffect(() => {
+    // Reset state completely to prevent stale flash when switching accounts
+    setLearningStats({
+      bestScore: 0,
+      quizCount: 0,
+      avgScore: 0,
+      accuracy: 0,
+      streak: 0,
+      signsPracticed: 0,
+      recentQuizzes: [],
+      loaded: false,
+    });
+    setLearnerOrg(null);
+    setOrgRequests([]);
     loadUserData();
 
     const handleRefresh = () => loadUserData();
+    const handleLogout = () => {
+      setLearningStats({
+        bestScore: 0,
+        quizCount: 0,
+        avgScore: 0,
+        accuracy: 0,
+        streak: 0,
+        signsPracticed: 0,
+        recentQuizzes: [],
+        loaded: false,
+      });
+      setLearnerOrg(null);
+      setOrgRequests([]);
+    };
+
     window.addEventListener('focus', handleRefresh);
     window.addEventListener('storage', handleRefresh);
     window.addEventListener('handspeak_quiz_updated', handleRefresh);
+    window.addEventListener('handspeak_org_updated', handleRefresh);
+    window.addEventListener('handspeak_logout', handleLogout);
 
     return () => {
       window.removeEventListener('focus', handleRefresh);
       window.removeEventListener('storage', handleRefresh);
       window.removeEventListener('handspeak_quiz_updated', handleRefresh);
+      window.removeEventListener('handspeak_org_updated', handleRefresh);
+      window.removeEventListener('handspeak_logout', handleLogout);
     };
   }, [user?.id, isOrg]);
+
+  const approvedMembersCount = orgRequests.filter((r) => r.status === 'approved').length;
+  const pendingRequestsCount = orgRequests.filter((r) => r.status === 'pending').length;
 
   return (
     <div className={styles.container}>
       <header className={styles.header}>
         <h1>Welcome back, {userName}!</h1>
-        <p>{isOrg ? 'Manage your community and view registered learners.' : 'Here is your real-time sign language learning progress.'}</p>
+        <p>{isOrg ? 'Manage learner membership requests and your deaf welfare chapter.' : 'Here is your real-time sign language learning progress.'}</p>
       </header>
 
       {/* Analytics Overview Panel */}
@@ -312,7 +356,7 @@ export default function DashboardPage() {
         <h2 className={styles.sectionTitle}>Overview</h2>
         
         {isOrg ? (
-          // Organization Dynamic Stats
+          // Organization Profile & Incoming Requests Dashboard
           <>
             <div className={styles.orgInfoCard}>
               <div className={styles.orgField}>
@@ -320,40 +364,141 @@ export default function DashboardPage() {
                 <span className={styles.orgValue}>{user?.user_metadata?.name || 'HandSpeak Partner'}</span>
               </div>
               <div className={styles.orgField}>
-                <span className={styles.orgLabel}>Contact Number</span>
+                <span className={styles.orgLabel}>Official Contact</span>
                 <span className={styles.orgValue}>{user?.user_metadata?.contact_num || 'Not specified'}</span>
               </div>
               <div className={styles.orgField}>
-                <span className={styles.orgLabel}>Address</span>
+                <span className={styles.orgLabel}>Registered Address</span>
                 <span className={styles.orgValue}>{user?.user_metadata?.address || 'Not specified'}</span>
               </div>
               <div className={styles.orgField}>
-                <span className={styles.orgLabel}>Account Status</span>
-                <span className={styles.orgValue} style={{ color: '#10B981' }}>Verified Partner ✓</span>
+                <span className={styles.orgLabel}>Verification Status</span>
+                <span className={styles.orgValue} style={{ color: '#10B981' }}>
+                  {user?.user_metadata?.phone_verified ? 'Mobile Verified ✓' : 'Registered Partner ✓'}
+                </span>
               </div>
             </div>
 
             <div className={styles.statsGrid}>
               <div className={styles.statCard}>
                 <div className={styles.statHeader}>
-                  <span className={styles.statTitle}>Registered Learners</span>
+                  <span className={styles.statTitle}>Approved Learners</span>
                   <UsersSVG />
                 </div>
-                <div className={styles.statValue}>{communityStats.totalLearners}</div>
-                <div className={styles.statSub}>Active in your portal</div>
+                <div className={styles.statValue}>{approvedMembersCount}</div>
+                <div className={styles.statSub}>Active registered members</div>
               </div>
+
+              <div className={styles.statCard}>
+                <div className={styles.statHeader}>
+                  <span className={styles.statTitle}>Pending Requests</span>
+                  <ActivitySVG />
+                </div>
+                <div className={styles.statValue} style={{ color: pendingRequestsCount > 0 ? '#D97706' : 'inherit' }}>
+                  {pendingRequestsCount}
+                </div>
+                <div className={styles.statSub}>
+                  {pendingRequestsCount > 0 ? 'Awaiting your review' : 'All requests reviewed'}
+                </div>
+              </div>
+
               <div className={styles.statCard}>
                 <div className={styles.statHeader}>
                   <span className={styles.statTitle}>Program Rating</span>
                   <StarSVG />
                 </div>
                 <div className={styles.statValue}>5.0 / 5</div>
-                <div className={styles.statSub}>Deaf Advocacy Certified</div>
+                <div className={styles.statSub}>Deaf Welfare Certified</div>
               </div>
+            </div>
+
+            {/* ORGANIZATION APPROVAL WORKFLOW DASHBOARD */}
+            <div className={styles.orgRequestsSection}>
+              <h2 className={styles.sectionTitle}>Learner Membership Requests &amp; Roster</h2>
+              <p style={{ color: 'var(--color-text-muted)', fontSize: '0.9rem', marginTop: '-0.5rem', marginBottom: '1.25rem' }}>
+                Review incoming affiliation requests from sign language learners. Approved learners are officially enrolled in your mentorship program.
+              </p>
+
+              {actionNotice && (
+                <div className={styles.toastSuccess} style={{ marginBottom: '1.25rem' }}>
+                  <span>{actionNotice}</span>
+                  <button
+                    type="button"
+                    onClick={() => setActionNotice('')}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.1rem', color: '#065F46', padding: '0 4px' }}
+                  >
+                    ✕
+                  </button>
+                </div>
+              )}
+
+              {orgRequests.length === 0 ? (
+                <div className={styles.emptyPrompt} style={{ background: 'var(--color-surface)', padding: '2rem', borderRadius: '12px', border: '1px solid var(--color-border)' }}>
+                  <span>📬 No membership requests yet. When learners register with your organization in the Partner Directory, their requests will appear here for approval.</span>
+                </div>
+              ) : (
+                <div className={styles.requestsList}>
+                  {orgRequests.map((req) => (
+                    <div key={req.userId} className={styles.requestCard}>
+                      <div className={styles.requestInfo}>
+                        <div className={styles.requestName}>
+                          <span>{req.name || 'HandSpeak Learner'}</span>
+                          {req.status === 'approved' && <span className={styles.badgeApproved}>Approved ✓</span>}
+                          {req.status === 'pending' && <span className={styles.badgePending}>Pending Review ⏳</span>}
+                          {req.status === 'rejected' && <span className={styles.badgeRejected}>Rejected</span>}
+                        </div>
+                        <div className={styles.requestMeta}>
+                          <span>✉️ {req.email || 'Email on file'}</span>
+                          <span>📅 Requested: {req.registeredAt ? new Date(req.registeredAt).toLocaleDateString() : 'Recent'}</span>
+                        </div>
+                      </div>
+
+                      <div className={styles.requestActions}>
+                        {req.status === 'pending' && (
+                          <>
+                            <button
+                              type="button"
+                              className={styles.btnApprove}
+                              onClick={() => handleApproveLearner(req.userId)}
+                            >
+                              Approve Request ✓
+                            </button>
+                            <button
+                              type="button"
+                              className={styles.btnReject}
+                              onClick={() => handleRejectLearner(req.userId)}
+                            >
+                              Reject
+                            </button>
+                          </>
+                        )}
+                        {req.status === 'approved' && (
+                          <button
+                            type="button"
+                            className={styles.btnRemove}
+                            onClick={() => handleRejectLearner(req.userId)}
+                          >
+                            Revoke Membership
+                          </button>
+                        )}
+                        {req.status === 'rejected' && (
+                          <button
+                            type="button"
+                            className={styles.btnApprove}
+                            onClick={() => handleApproveLearner(req.userId)}
+                          >
+                            Re-Approve
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </>
         ) : (
-          // Learner Dynamic Stats (Accurate to this User)
+          // Learner Dynamic Stats (Accurate strictly to this user)
           <>
             <div className={styles.statsGrid}>
               <div className={styles.statCard}>
@@ -390,13 +535,15 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            {/* Real Quiz History for this specific learner */}
-            <div className={styles.historySection}>
-              <h3>
+            {/* Recent Quiz Attempts Log */}
+            <div className={styles.historyCard}>
+              <h3 className={styles.historyTitle}>
                 Recent Quiz Attempts
-                <Link to="/speed-quiz" style={{ fontSize: '0.85rem', color: 'var(--color-primary)', textDecoration: 'none' }}>
-                  Play Again ➔
-                </Link>
+                {learningStats.recentQuizzes.length > 0 && (
+                  <span style={{ fontSize: '0.85rem', fontWeight: 500, color: 'var(--color-text-muted)' }}>
+                    ({learningStats.recentQuizzes.length} recent sessions)
+                  </span>
+                )}
               </h3>
 
               {learningStats.recentQuizzes.length > 0 ? (
@@ -413,7 +560,7 @@ export default function DashboardPage() {
                       <div key={index} className={styles.historyItem}>
                         <div>
                           <span className={styles.historyScore}>{quiz.score} Points</span>
-                          {quiz.score === learningStats.bestScore && (
+                          {quiz.score === learningStats.bestScore && quiz.score > 0 && (
                             <span style={{ marginLeft: '0.5rem', fontSize: '0.8rem', background: '#FEF3C7', color: '#D97706', padding: '2px 8px', borderRadius: '4px', fontWeight: 600 }}>
                               Personal Best 🏆
                             </span>
@@ -431,7 +578,7 @@ export default function DashboardPage() {
               )}
             </div>
 
-            {/* Registered Organisations Section for Learners */}
+            {/* Partner Organisations Section for Learners */}
             <div className={styles.orgsSection}>
               <h2 className={styles.sectionTitle}>Partner Organisations &amp; Deaf Communities</h2>
 
@@ -449,30 +596,49 @@ export default function DashboardPage() {
                 </div>
               )}
 
+              {/* Learner's Registered Affiliation Banner with Status */}
               {learnerOrg && (
-                <div className={styles.affiliationBanner}>
-                  <div className={styles.affiliationText}>
-                    <span style={{ fontSize: '1.25rem' }}>🏛️</span>
-                    <span>You are currently registered with <strong>{learnerOrg.orgName}</strong></span>
+                learnerOrg.status === 'pending' ? (
+                  <div className={styles.pendingBanner}>
+                    <div className={styles.pendingText}>
+                      <span style={{ fontSize: '1.25rem' }}>⏳</span>
+                      <span>Request Pending: You applied to register with <strong>{learnerOrg.orgName}</strong>. Awaiting mentor approval.</span>
+                    </div>
+                    <button
+                      type="button"
+                      className={styles.btnReject}
+                      onClick={() => handleUnregisterOrg(learnerOrg.orgId)}
+                    >
+                      Cancel Request
+                    </button>
                   </div>
-                  <button
-                    type="button"
-                    className={styles.affiliationAction}
-                    onClick={() => handleUnregisterOrg(learnerOrg.orgId)}
-                  >
-                    Leave Organisation
-                  </button>
-                </div>
+                ) : (
+                  <div className={styles.affiliationBanner}>
+                    <div className={styles.affiliationText}>
+                      <span style={{ fontSize: '1.25rem' }}>🏛️</span>
+                      <span>Registered Member: You are an active registered learner with <strong>{learnerOrg.orgName}</strong></span>
+                    </div>
+                    <button
+                      type="button"
+                      className={styles.affiliationAction}
+                      onClick={() => handleUnregisterOrg(learnerOrg.orgId)}
+                    >
+                      Leave Organisation
+                    </button>
+                  </div>
+                )
               )}
 
               <div className={styles.orgGrid}>
                 {organizations.map((org) => {
                   const isMember = learnerOrg?.orgId === org.id;
+                  const isPending = isMember && learnerOrg?.status === 'pending';
+                  const isApproved = isMember && learnerOrg?.status === 'approved';
 
                   return (
                     <div
                       key={org.id}
-                      className={`${styles.orgCard} ${isMember ? styles.orgCardRegistered : ''}`}
+                      className={`${styles.orgCard} ${isApproved ? styles.orgCardRegistered : ''}`}
                     >
                       <div className={styles.orgCardTop}>
                         <div className={styles.orgHeaderRow}>
@@ -510,7 +676,7 @@ export default function DashboardPage() {
                       </div>
 
                       <div>
-                        {isMember ? (
+                        {isApproved ? (
                           <button
                             type="button"
                             className={styles.orgRegisteredBtn}
@@ -519,13 +685,23 @@ export default function DashboardPage() {
                             <span>Registered Member ✓</span>
                             <span style={{ fontSize: '0.8rem', opacity: 0.85 }}>(Click to Leave)</span>
                           </button>
+                        ) : isPending ? (
+                          <button
+                            type="button"
+                            className={styles.orgRegisteredBtn}
+                            style={{ background: '#FEF3C7', color: '#92400E', borderColor: '#FDE68A' }}
+                            onClick={() => handleUnregisterOrg(org.id)}
+                          >
+                            <span>Pending Approval ⏳</span>
+                            <span style={{ fontSize: '0.8rem', opacity: 0.85 }}>(Click to Cancel)</span>
+                          </button>
                         ) : (
                           <button
                             type="button"
                             className={styles.orgRegisterBtn}
                             onClick={() => handleRegisterOrg(org)}
                           >
-                            <span>Register to Organisation</span>
+                            <span>Request to Register</span>
                             <span>➔</span>
                           </button>
                         )}

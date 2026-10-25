@@ -1,62 +1,64 @@
 import { getRegisteredOrganizations } from './organizations';
 
 /**
- * Computes live, authentic platform statistics from actual registered accounts,
- * affiliated deaf welfare organisations, quiz attempts, and practice sessions.
+ * Returns real-time platform stats computed from actual local data.
+ * Offline-first: reads from localStorage/IndexedDB only.
+ * All key patterns are aligned with the actual keys written by offlineDb.js and SpeedQuiz.jsx.
  */
 export function getPlatformLiveStats() {
   try {
-    // 1. Count actual registered accounts
     let accounts = {};
     try {
       accounts = JSON.parse(localStorage.getItem('handspeak_accounts') || '{}');
     } catch {
       accounts = {};
     }
+
     const accountList = Object.values(accounts);
+    const registeredLearners = accountList.filter(
+      (a) => a?.user_metadata?.account_type !== 'organization'
+    ).length;
 
     let activeUser = null;
     try {
       activeUser = JSON.parse(localStorage.getItem('handspeak_active_user') || 'null');
     } catch {}
 
-    const registeredLearners = accountList.filter(
-      (a) => a?.user_metadata?.account_type !== 'organization'
-    ).length;
-
-    // Minimum 1 if an active session exists
-    const hasActiveLearner = activeUser && activeUser?.user_metadata?.account_type !== 'organization';
+    const hasActiveLearner =
+      activeUser && activeUser?.user_metadata?.account_type !== 'organization';
     const learnerCount = Math.max(registeredLearners, hasActiveLearner ? 1 : 0);
 
-    // 2. Real accredited organisations (ISLRTC, NAD, AIFD, PAD + any registered org accounts)
+    // Real approved partner orgs (defaults + approved registered)
     const orgs = getRegisteredOrganizations();
     const orgCount = orgs.length;
 
-    // 3. Real quiz attempts and signs translated from device storage
+    // Count quizzes from user-specific keys only (not global polluted keys)
+    // Keys written by SpeedQuiz.jsx: handspeak_quiz_history_${userId}
     let totalQuizzes = 0;
     let totalSignsTranslated = 0;
 
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i);
       if (!key) continue;
+      const lower = key.toLowerCase();
 
-      if (key.includes('quiz_history') || key.includes('quiz_attempts')) {
+      // Match user-scoped quiz history keys: handspeak_quiz_history_usr_* or handspeak_quiz_history_<id>
+      if (lower.startsWith('handspeak_quiz_history_') && !lower.endsWith('_guest')) {
         try {
           const items = JSON.parse(localStorage.getItem(key));
-          if (Array.isArray(items)) {
-            totalQuizzes += items.length;
-          }
+          if (Array.isArray(items)) totalQuizzes += items.length;
         } catch {}
       }
 
-      if (key.includes('translation_history') || key.includes('learning_data')) {
+      // Match user-scoped translate history keys: handspeak_translatehistory_* 
+      // offlineDb.js writes: handspeak_translateHistory_${userId}
+      if (
+        lower.startsWith('handspeak_translatehistory_') ||
+        lower.startsWith('handspeak_translate_history_')
+      ) {
         try {
           const items = JSON.parse(localStorage.getItem(key));
-          if (Array.isArray(items)) {
-            totalSignsTranslated += items.length;
-          } else if (items?.translateHistory && Array.isArray(items.translateHistory)) {
-            totalSignsTranslated += items.translateHistory.length;
-          }
+          if (Array.isArray(items)) totalSignsTranslated += items.length;
         } catch {}
       }
     }
@@ -64,20 +66,20 @@ export function getPlatformLiveStats() {
     return {
       learners: learnerCount,
       organizations: orgCount,
+      vocabularyClasses: 33, // 26 A–Z + 7 Indian word signs
       totalQuizzes,
       signsTranslated: totalSignsTranslated,
-      vocabularyClasses: 36, // 26 Letters (A-Z) + 7 Regional Indian Word Signs
       communityTotal: Math.max(1, learnerCount + orgCount),
     };
   } catch (err) {
     console.error('Error fetching live platform stats:', err);
     return {
-      learners: 1,
+      learners: 0,
       organizations: 4,
+      vocabularyClasses: 33,
       totalQuizzes: 0,
       signsTranslated: 0,
-      vocabularyClasses: 33,
-      communityTotal: 5,
+      communityTotal: 4,
     };
   }
 }

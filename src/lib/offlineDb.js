@@ -166,48 +166,50 @@ export async function getLearningData(userOrId) {
     ? userOrId.email.trim().toLowerCase().replace(/[^a-zA-Z0-9]/g, '_')
     : null;
 
-  // Gather ALL local storage quiz history and best scores across all candidate and existing keys
+  // Gather ONLY this user's local storage quiz history and best scores (strict user isolation)
   let localBest = 0;
   let allLocalQuizAttempts = [];
   let allLocalTransAttempts = [];
 
   try {
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      if (!key) continue;
-      const lower = key.toLowerCase();
+    const userBestKeys = [
+      handspeak_quiz_best_,
+      emailKey ? handspeak_quiz_best_usr_ : null,
+    ].filter(Boolean);
 
-      // Collect quiz attempts
-      if (lower.includes('quiz') && (lower.includes('hist') || lower.includes('attempt'))) {
+    for (const key of userBestKeys) {
+      const val = Number(localStorage.getItem(key)) || 0;
+      if (val > localBest) localBest = val;
+    }
+
+    const userQuizKeys = [
+      handspeak_quiz_history_,
+      handspeak_quizHistory_,
+      emailKey ? handspeak_quiz_history_usr_ : null,
+    ].filter(Boolean);
+
+    for (const key of userQuizKeys) {
+      const raw = localStorage.getItem(key);
+      if (raw) {
         try {
-          const raw = localStorage.getItem(key);
-          if (raw) {
-            const parsed = JSON.parse(raw);
-            if (Array.isArray(parsed)) {
-              allLocalQuizAttempts.push(...parsed);
-            } else if (parsed && typeof parsed === 'object' && 'score' in parsed) {
-              allLocalQuizAttempts.push(parsed);
-            }
-          }
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed)) allLocalQuizAttempts.push(...parsed);
         } catch {}
       }
+    }
 
-      // Collect best scores
-      if (lower.includes('quiz') && (lower.includes('best') || lower.includes('score'))) {
-        try {
-          const val = Number(localStorage.getItem(key)) || 0;
-          if (val > localBest) localBest = val;
-        } catch {}
-      }
+    const userTransKeys = [
+      handspeak_translateHistory_,
+      handspeak_translate_history_,
+      emailKey ? handspeak_translateHistory_usr_ : null,
+    ].filter(Boolean);
 
-      // Collect translate history
-      if (lower.includes('translate') && (lower.includes('hist') || lower.includes('attempt'))) {
+    for (const key of userTransKeys) {
+      const raw = localStorage.getItem(key);
+      if (raw) {
         try {
-          const raw = localStorage.getItem(key);
-          if (raw) {
-            const parsed = JSON.parse(raw);
-            if (Array.isArray(parsed)) allLocalTransAttempts.push(...parsed);
-          }
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed)) allLocalTransAttempts.push(...parsed);
         } catch {}
       }
     }
@@ -225,7 +227,7 @@ export async function getLearningData(userOrId) {
 
   const result = dbData ?? createEmptyLearningData(userId);
 
-  // Seamlessly merge IndexedDB and localStorage
+  // Seamlessly merge IndexedDB and user-scoped localStorage
   result.quizHistory = mergeQuizHistories(result.quizHistory, allLocalQuizAttempts);
   result.translateHistory = mergeTranslateHistories(result.translateHistory, allLocalTransAttempts);
 
@@ -242,14 +244,12 @@ export async function saveQuizBestScore(userOrId, score) {
     throw new Error('Quiz best score must be a non-negative number.');
   }
 
-  // Mirror synchronously to localStorage
+  // Mirror synchronously to user-scoped localStorage
   try {
-    const key = `handspeak_quiz_best_${userId}`;
+    const key = handspeak_quiz_best_;
     const prev = Number(localStorage.getItem(key)) || 0;
     const finalScore = Math.max(prev, parsedScore);
     localStorage.setItem(key, String(finalScore));
-    localStorage.setItem('speedQuizBest', String(finalScore));
-    localStorage.setItem('handspeak_quiz_best', String(finalScore));
   } catch {}
 
   try {
@@ -283,14 +283,11 @@ export async function recordQuizCompletion(userOrId, score) {
 
   let newBest = parsedScore;
 
-  // 1. Synchronously persist to localStorage across all candidate keys
+  // 1. Synchronously persist ONLY to user-scoped keys to avoid cross-user bleeding
   try {
     const bestKeys = [
-      `handspeak_quiz_best_${userId}`,
-      emailKey ? `handspeak_quiz_best_usr_${emailKey}` : null,
-      'speedQuizBest',
-      'handspeak_quiz_best',
-      'handspeak_quiz_best_usr_guest',
+      handspeak_quiz_best_,
+      emailKey ? handspeak_quiz_best_usr_ : null,
     ].filter(Boolean);
 
     for (const bk of bestKeys) {
@@ -300,12 +297,9 @@ export async function recordQuizCompletion(userOrId, score) {
     }
 
     const histKeys = [
-      `handspeak_quiz_history_${userId}`,
-      `handspeak_quizHistory_${userId}`,
-      emailKey ? `handspeak_quiz_history_usr_${emailKey}` : null,
-      'handspeak_quiz_history',
-      'speedQuizHistory',
-      'handspeak_quiz_history_usr_guest',
+      handspeak_quiz_history_,
+      handspeak_quizHistory_,
+      emailKey ? handspeak_quiz_history_usr_ : null,
     ].filter(Boolean);
 
     let existingHist = [];
@@ -329,7 +323,7 @@ export async function recordQuizCompletion(userOrId, score) {
     // Trigger event for immediate dashboard updates
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('handspeak_quiz_updated', {
-        detail: { score: parsedScore, completedAt: now, best: newBest }
+        detail: { score: parsedScore, completedAt: now, best: newBest, userId }
       }));
     }
   } catch (err) {
@@ -368,10 +362,8 @@ export async function loadQuizBestScore(userOrId) {
 
   let localBest = 0;
   const bestKeys = [
-    `handspeak_quiz_best_${userId}`,
-    emailKey ? `handspeak_quiz_best_usr_${emailKey}` : null,
-    'speedQuizBest',
-    'handspeak_quiz_best_usr_guest',
+    handspeak_quiz_best_,
+    emailKey ? handspeak_quiz_best_usr_ : null,
   ].filter(Boolean);
 
   for (const bk of bestKeys) {
