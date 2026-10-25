@@ -229,12 +229,6 @@ export const AuthProvider = ({ children }) => {
     }
 
     const accounts = JSON.parse(localStorage.getItem('handspeak_accounts') || '{}');
-    if (accounts[normalizedEmail]) {
-      return {
-        data: null,
-        error: new Error('An account with email "' + normalizedEmail + '" already exists. Please log in instead or use another email.'),
-      };
-    }
     const localAccount = accounts[normalizedEmail];
 
     // 1. If account is found locally:
@@ -336,13 +330,23 @@ export const AuthProvider = ({ children }) => {
     }
 
     const accounts = JSON.parse(localStorage.getItem('handspeak_accounts') || '{}');
+    if (accounts[normalizedEmail]) {
+      return {
+        data: null,
+        error: new Error('An account with email "' + normalizedEmail + '" already exists. Please log in instead or use another email.'),
+      };
+    }
 
     let supabaseUser = null;
     try {
+      const redirectUrl = typeof window !== 'undefined' ? `${window.location.origin}/dashboard` : undefined;
       const res = await supabase.auth.signUp({
         email: normalizedEmail,
         password,
-        options: { data: metaData },
+        options: {
+          data: metaData,
+          emailRedirectTo: redirectUrl,
+        },
       });
       supabaseUser = res.data?.user;
     } catch (e) {
