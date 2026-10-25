@@ -155,9 +155,37 @@ export const AuthProvider = ({ children }) => {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, session) => {
       if (session?.user) {
-        updateUser(session.user, !navigator.onLine);
+        const authedUser = {
+          id: session.user.id,
+          email: session.user.email?.toLowerCase(),
+          user_metadata: session.user.user_metadata || {
+            name: session.user.email?.split('@')[0],
+            account_type: 'learner',
+          },
+        };
+        updateUser(authedUser, !navigator.onLine);
         setAuthMessage('');
+        localStorage.setItem('handspeak_active_user', JSON.stringify(authedUser));
+
+        try {
+          const accounts = JSON.parse(localStorage.getItem('handspeak_accounts') || '{}');
+          if (!accounts[authedUser.email]) {
+            accounts[authedUser.email] = authedUser;
+            localStorage.setItem('handspeak_accounts', JSON.stringify(accounts));
+          }
+        } catch {}
+
         void persistProfile(session.user);
+
+        // If email confirmation link brought the user here with hash tokens, redirect to /dashboard
+        if (
+          typeof window !== 'undefined' &&
+          (window.location.hash.includes('access_token=') ||
+            window.location.search.includes('code=') ||
+            window.location.hash.includes('type=signup'))
+        ) {
+          window.location.href = '/dashboard';
+        }
       } else if (event === 'SIGNED_OUT') {
         updateUser(null);
         void clearProfile();
