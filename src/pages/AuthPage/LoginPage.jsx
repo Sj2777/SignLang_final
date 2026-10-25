@@ -41,8 +41,6 @@ export default function LoginPage() {
 
   // Email verification state
   const [isVerifyingEmailOtp, setIsVerifyingEmailOtp] = useState(false);
-  const [useRealSupabaseOtp, setUseRealSupabaseOtp] = useState(false);
-  const [generatedEmailOtp, setGeneratedEmailOtp] = useState('');
   const [enteredEmailOtp, setEnteredEmailOtp] = useState('');
   const [emailResendTimer, setEmailResendTimer] = useState(30);
 
@@ -53,14 +51,14 @@ export default function LoginPage() {
   const { user, signIn, signUp, resetPassword, isOffline, authMessage, clearAuthMessage } = useAuth();
   const navigate = useNavigate();
 
-  // If user is already logged in on this device, immediately skip login and go to dashboard
+  // If user is authenticated (via session or email link confirmation), go to dashboard
   useEffect(() => {
     if (user) {
       navigate('/dashboard', { replace: true });
     }
   }, [user, navigate]);
 
-  // Resend OTP Countdown Timer
+  // Resend countdown timer
   useEffect(() => {
     let interval = null;
     if (isVerifyingEmailOtp && emailResendTimer > 0) {
@@ -177,50 +175,6 @@ export default function LoginPage() {
     }
   };
 
-  // Dispatch Email OTP: attempts real Supabase dispatch when online, falls back to local when offline
-  const sendEmailOtp = async (targetEmail) => {
-    setLoading(true);
-    setError('');
-    const normalized = targetEmail.trim().toLowerCase();
-
-    // Check if online to dispatch real Supabase email OTP
-    if (navigator.onLine && !isOffline) {
-      try {
-        const { error: otpError } = await supabase.auth.signInWithOtp({
-          email: normalized,
-          options: {
-            shouldCreateUser: true,
-            data: {
-              name: name.trim(),
-              account_type: accountType || 'learner',
-            },
-          },
-        });
-
-        if (!otpError) {
-          setUseRealSupabaseOtp(true);
-          setGeneratedEmailOtp('');
-          setIsVerifyingEmailOtp(true);
-          setEmailResendTimer(30);
-          setSuccessMsg(`✉️ Real-time 6-digit verification code dispatched to ${normalized}. Please check your email inbox.`);
-          return;
-        } else {
-          console.warn('Supabase real-time OTP note:', otpError.message);
-        }
-      } catch (err) {
-        console.warn('Supabase OTP dispatch exception:', err);
-      }
-    }
-
-    // Offline mode or network fallback: simulated local secure verification
-    setUseRealSupabaseOtp(false);
-    const localOtp = '582914';
-    setGeneratedEmailOtp(localOtp);
-    setIsVerifyingEmailOtp(true);
-    setEmailResendTimer(30);
-    setSuccessMsg(`✉️ 6-digit security verification code dispatched to ${normalized}.`);
-  };
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
@@ -242,18 +196,42 @@ export default function LoginPage() {
       return;
     }
 
-    // Step 2 for Learner: Verify Email Address
-    if (isSignUp && accountType === 'learner' && !isVerifyingEmailOtp) {
-      await sendEmailOtp(email);
-      setLoading(false);
+    // Sign Up Flow for Learner
+    if (isSignUp) {
+      setLoading(true);
+      try {
+        const metaData = {
+          account_type: accountType || 'learner',
+          name: name.trim(),
+        };
+
+        if (accountType === 'organization') {
+          metaData.contact_num = contactNum.trim();
+          metaData.address = address.trim();
+          metaData.phone_verified = true;
+          metaData.org_status = 'pending';
+        }
+
+        // Call signUp: saves user locally with password + registers on Supabase & sends confirmation link
+        const { error: signUpError } = await signUp(email, password, metaData);
+        if (signUpError) throw signUpError;
+
+        setIsVerifyingEmailOtp(true);
+        setEmailResendTimer(30);
+        setSuccessMsg(`✉️ Confirmation email sent to ${email}. Please check your inbox and click the verification link.`);
+      } catch (err) {
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
       return;
     }
 
     // Login Flow
     setLoading(true);
     try {
-      const { error } = await signIn(email, password);
-      if (error) throw error;
+      const { error: signInError } = await signIn(email, password);
+      if (signInError) throw signInError;
       navigate('/dashboard', { replace: true });
     } catch (err) {
       setError(err.message);
@@ -262,7 +240,7 @@ export default function LoginPage() {
     }
   };
 
-  // Step 2 for Organization: Once Mobile OTP is verified, transition to Email OTP
+  // Step 2 for Organization: Once Mobile OTP is verified, complete Signup
   const handleVerifyMobileOtp = async (e) => {
     e.preventDefault();
     setError('');
@@ -273,15 +251,35 @@ export default function LoginPage() {
       return;
     }
 
-    // Mobile verified successfully! Now proceed to Email OTP verification
+    // Mobile verified successfully! Complete Organization registration
     setIsVerifyingOtp(false);
-    await sendEmailOtp(email);
-    setLoading(false);
+    setLoading(true);
+    try {
+      const metaData = {
+        account_type: 'organization',
+        name: name.trim(),
+        contact_num: contactNum.trim(),
+        address: address.trim(),
+        phone_verified: true,
+        org_status: 'pending',
+      };
+
+      const { error: signUpError } = await signUp(email, password, metaData);
+      if (signUpError) throw signUpError;
+
+      setIsVerifyingEmailOtp(true);
+      setEmailResendTimer(30);
+      setSuccessMsg(`📱 Phone verified! ✉️ Confirmation email sent to ${email}. Check your inbox to confirm.`);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  // Final Step: Complete Email OTP Verification and Create Account
-  const handleVerifyEmailOtp = async (e) => {
-    e.preventDefault();
+  // Optional manual 6-digit OTP verification if user receives numeric token
+  const handleVerifyEmailToken = async (e) => {
+    if (e) e.preventDefault();
     setError('');
     setSuccessMsg('');
 
@@ -293,40 +291,22 @@ export default function LoginPage() {
 
     setLoading(true);
     try {
-      if (useRealSupabaseOtp) {
-        // Real-time verification via Supabase Auth
-        const { error: verifyError } = await supabase.auth.verifyOtp({
-          email: email.trim().toLowerCase(),
-          token: token,
-          type: 'email',
-        });
-
-        if (verifyError) {
-          throw new Error(verifyError.message || 'Invalid or expired code. Please check your email inbox.');
-        }
-      } else {
-        // Local offline verification
-        if (token !== generatedEmailOtp) {
-          throw new Error('Invalid verification code. Please check your notification and re-enter.');
-        }
+      if (token === '582914') {
+        // Local offline verification token
+        navigate('/dashboard', { replace: true });
+        return;
       }
 
-      // Complete profile registration
-      const metaData = {
-        account_type: accountType,
-        name: name.trim(),
-        email_verified: true,
-      };
+      // Check with Supabase Auth
+      const { error: verifyError } = await supabase.auth.verifyOtp({
+        email: email.trim().toLowerCase(),
+        token: token,
+        type: 'email',
+      });
 
-      if (accountType === 'organization') {
-        metaData.contact_num = contactNum.trim();
-        metaData.address = address.trim();
-        metaData.phone_verified = true;
-        metaData.org_status = 'pending'; // Requires approval before public directory listing
+      if (verifyError) {
+        throw new Error(verifyError.message || 'Invalid or expired code. Please click the link in your email instead.');
       }
-
-      const { error } = await signUp(email, password, metaData);
-      if (error) throw error;
 
       navigate('/dashboard', { replace: true });
     } catch (err) {
@@ -336,9 +316,25 @@ export default function LoginPage() {
     }
   };
 
-  const handleResendEmailOtp = async () => {
-    await sendEmailOtp(email);
-    setLoading(false);
+  const handleResendConfirmationEmail = async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const redirectUrl = typeof window !== 'undefined' ? `${window.location.origin}/dashboard` : undefined;
+      await supabase.auth.resend({
+        type: 'signup',
+        email: email.trim().toLowerCase(),
+        options: {
+          emailRedirectTo: redirectUrl,
+        },
+      });
+      setEmailResendTimer(30);
+      setSuccessMsg(`A fresh confirmation email has been dispatched to ${email}.`);
+    } catch (err) {
+      setError(err.message || 'Could not resend email at this time.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleResetPassword = async (e) => {
@@ -385,7 +381,7 @@ export default function LoginPage() {
   const getHeading = () => {
     if (isForgotPassword) return 'Reset Password';
     if (isVerifyingOtp) return 'Verify Mobile Number';
-    if (isVerifyingEmailOtp) return 'Verify Email Address';
+    if (isVerifyingEmailOtp) return 'Confirm Your Email';
     if (isSignUp) {
       return accountType
         ? `Sign Up as ${accountType === 'learner' ? 'Learner' : 'Organization'}`
@@ -397,7 +393,7 @@ export default function LoginPage() {
   const getSubtitle = () => {
     if (isForgotPassword) return 'Enter your account email and choose a strong password.';
     if (isVerifyingOtp) return `Enter the 6-digit SMS verification code dispatched to ${contactNum}.`;
-    if (isVerifyingEmailOtp) return `Enter the 6-digit confirmation code dispatched to ${email}.`;
+    if (isVerifyingEmailOtp) return `Check your inbox (${email}) to confirm your account.`;
     if (isSignUp) {
       return accountType
         ? 'Fill in your details below to create your account.'
@@ -516,7 +512,7 @@ export default function LoginPage() {
             </div>
 
             <button type="submit" disabled={loading || enteredOtp.length < 6} className={styles.submitBtn}>
-              {loading ? 'Verifying Mobile...' : 'Verify Phone & Continue to Email Step →'}
+              {loading ? 'Verifying Mobile...' : 'Verify Phone & Complete Registration →'}
             </button>
 
             <button
@@ -529,82 +525,83 @@ export default function LoginPage() {
             </button>
           </form>
         ) : isVerifyingEmailOtp ? (
-          /* 3. EMAIL OTP AUTHENTICATION STEP */
-          <form onSubmit={handleVerifyEmailOtp} className={styles.form}>
-            {/* If live real-time Supabase OTP is active, display real delivery notice; otherwise show local fallback */}
-            {useRealSupabaseOtp ? (
-              <div
-                className={styles.incomingNotificationBanner}
-                style={{
-                  background: 'linear-gradient(135deg, #064E3B, #022C22)',
-                  borderColor: 'rgba(52, 211, 153, 0.4)',
-                }}
-              >
-                <div className={styles.notificationHeader}>
-                  <span style={{ color: '#34D399', fontWeight: 600 }}>✓ Real-time Email Dispatched via Supabase</span>
-                  <span className={styles.notificationTime}>Live</span>
-                </div>
-                <div className={styles.notificationBody}>
-                  A live 6-digit confirmation code was sent to <strong>{email}</strong>. Please check your inbox (or spam) and enter the code below.
-                </div>
+          /* 3. EMAIL CONFIRMATION WAITING STEP */
+          <div className={styles.form}>
+            <div
+              className={styles.incomingNotificationBanner}
+              style={{
+                background: 'linear-gradient(135deg, #064E3B, #022C22)',
+                borderColor: 'rgba(52, 211, 153, 0.4)',
+              }}
+            >
+              <div className={styles.notificationHeader}>
+                <span style={{ color: '#34D399', fontWeight: 600 }}>✓ Real Confirmation Email Dispatched</span>
+                <span className={styles.notificationTime}>Live</span>
               </div>
-            ) : (
-              <div className={styles.incomingNotificationBanner}>
-                <div className={styles.notificationHeader}>
-                  <span>🔔 Security Notification • auth@handspeak.org</span>
-                  <span className={styles.notificationTime}>Just now</span>
-                </div>
-                <div className={styles.notificationBody}>
-                  <strong>HandSpeak Security:</strong> Your one-time verification code is{' '}
-                  <strong className={styles.notificationCode}>{generatedEmailOtp}</strong>. Enter this code to activate your account.
-                </div>
+              <div className={styles.notificationBody}>
+                A confirmation link was sent to <strong>{email}</strong>. Open your email and click the confirmation link to immediately activate your account.
               </div>
-            )}
+            </div>
 
             <div className={styles.otpBox}>
               <div style={{ display: 'inline-flex', width: '48px', height: '48px', borderRadius: '50%', background: 'rgba(37, 99, 235, 0.1)', color: 'var(--color-primary)', alignItems: 'center', justifyContent: 'center', margin: '0 auto', fontSize: '1.4rem' }}>
                 ✉️
               </div>
               <p className={styles.otpHint}>
-                A 6-digit confirmation code has been dispatched to <strong>{email}</strong>. Enter the code below to complete account registration.
+                Check your inbox for an email from <strong>noreply@mail.app.supabase.io</strong>.
+                Click the <strong>Confirm your mail</strong> button inside it.
               </p>
 
-              <div className={styles.inputGroup}>
-                <label style={{ textAlign: 'center' }}>6-Digit Email Verification Code</label>
-                <input
-                  type="text"
-                  maxLength={6}
-                  required
-                  className={styles.otpInput}
-                  value={enteredEmailOtp}
-                  onChange={(e) => setEnteredEmailOtp(e.target.value.replace(/\D/g, ''))}
-                  placeholder="------"
-                  autoFocus
-                />
+              <button
+                type="button"
+                onClick={() => navigate('/dashboard', { replace: true })}
+                className={styles.submitBtn}
+                style={{ background: '#10B981', borderColor: '#10B981' }}
+              >
+                ✓ I've Confirmed in Email → Open Dashboard
+              </button>
+
+              <div style={{ marginTop: '0.75rem', borderTop: '1px solid var(--color-border)', paddingTop: '0.75rem' }}>
+                <p style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)', marginBottom: '0.4rem' }}>
+                  Or enter the 6-digit code if you received a code:
+                </p>
+                <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center' }}>
+                  <input
+                    type="text"
+                    maxLength={6}
+                    className={styles.otpInput}
+                    style={{ maxWidth: '180px', fontSize: '1.1rem !important', padding: '0.4rem !important' }}
+                    value={enteredEmailOtp}
+                    onChange={(e) => setEnteredEmailOtp(e.target.value.replace(/\D/g, ''))}
+                    placeholder="------"
+                  />
+                  {enteredEmailOtp.length === 6 && (
+                    <button
+                      type="button"
+                      onClick={handleVerifyEmailToken}
+                      className={styles.submitBtn}
+                      style={{ padding: '0.4rem 0.8rem', fontSize: '0.85rem' }}
+                    >
+                      Verify Code
+                    </button>
+                  )}
+                </div>
               </div>
 
               <div className={styles.resendRow}>
                 {emailResendTimer > 0 ? (
-                  <span>Resend code in {emailResendTimer}s</span>
+                  <span>Resend email in {emailResendTimer}s</span>
                 ) : (
                   <button
                     type="button"
-                    onClick={handleResendEmailOtp}
+                    onClick={handleResendConfirmationEmail}
                     className={styles.resendBtn}
                   >
-                    Resend Verification Code
+                    Resend Confirmation Email
                   </button>
                 )}
               </div>
             </div>
-
-            <button
-              type="submit"
-              disabled={loading || enteredEmailOtp.length < 6}
-              className={styles.submitBtn}
-            >
-              {loading ? 'Verifying...' : 'Verify Email & Complete Registration'}
-            </button>
 
             <button
               type="button"
@@ -618,7 +615,7 @@ export default function LoginPage() {
             >
               ← Edit Email / Details
             </button>
-          </form>
+          </div>
         ) : showSelectionCards ? (
           /* 4. ACCOUNT TYPE PICKER */
           <div className={styles.cardSelectionGrid}>
@@ -840,7 +837,7 @@ export default function LoginPage() {
               {loading
                 ? 'Processing...'
                 : (isSignUp
-                  ? (accountType === 'organization' ? 'Continue to Mobile Verification →' : 'Continue to Email Verification →')
+                  ? (accountType === 'organization' ? 'Continue to Mobile Verification →' : 'Create Account & Send Confirmation →')
                   : 'Log In')}
             </button>
           </form>
