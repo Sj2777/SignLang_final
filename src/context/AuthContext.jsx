@@ -8,7 +8,7 @@ import {
   userFromCachedProfile,
 } from '../lib/offlineDb';
 import useOnlineStatus from '../hooks/useOnlineStatus';
-import { hashPassword, verifyPassword, isValidEmail, validateEmail, validatePassword } from '../lib/crypto';
+import { hashPassword, verifyPassword, isValidEmail, validateEmail, validatePassword, validateName } from '../lib/crypto';
 
 const AuthContext = createContext({});
 const SESSION_RETRY_DELAYS_MS = [500, 1500];
@@ -318,6 +318,12 @@ export const AuthProvider = ({ children }) => {
       return { data: null, error: new Error(emailValidation.message) };
     }
 
+    if (metaData?.name) {
+      const nameValidation = validateName(metaData.name, metaData.account_type);
+      if (!nameValidation.valid) {
+        return { data: null, error: new Error(nameValidation.message) };
+      }
+    }
     const pwdValidation = validatePassword(password);
     if (!pwdValidation.valid) {
       return { data: null, error: new Error(pwdValidation.message) };

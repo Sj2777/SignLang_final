@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { validateEmail, isValidEmail, validatePassword, isValidIndianPhone } from '../../lib/crypto';
+import { validateName, validateEmail, isValidEmail, validatePassword, isValidIndianPhone } from '../../lib/crypto';
 import styles from './Auth.module.css';
 
 const HandShakeSVG = () => (
@@ -91,6 +91,14 @@ export default function LoginPage() {
     clearAuthMessage();
   };
 
+  // Real-time name validation
+  const nameValidation = useMemo(() => {
+    if (!name.trim()) return { valid: false, message: '' };
+    return validateName(name, accountType || 'learner');
+  }, [name, accountType]);
+
+  const isNameValid = !isSignUp || nameValidation.valid;
+
   // Real-time email validation
   const emailValidation = useMemo(() => {
     if (!email.trim()) return { valid: false, message: '' };
@@ -109,6 +117,9 @@ export default function LoginPage() {
 
   const isPasswordValid = pwdChecks.length && pwdChecks.upper && pwdChecks.number && pwdChecks.special;
 
+  // Gating flag: user must provide a valid name and valid email before password unlocks
+  const isReadyForPassword = !isSignUp || (isNameValid && isEmailValid);
+
   const validateInputs = () => {
     if (!email.trim()) throw new Error('Please enter your email address.');
     
@@ -118,8 +129,9 @@ export default function LoginPage() {
     }
 
     if (isSignUp) {
-      if (!name.trim()) {
-        throw new Error(accountType === 'organization' ? 'Please enter your organization name.' : 'Please enter your name.');
+      const nameRes = validateName(name, accountType || 'learner');
+      if (!nameRes.valid) {
+        throw new Error(nameRes.message);
       }
 
       const pwdResult = validatePassword(password);
@@ -542,15 +554,50 @@ export default function LoginPage() {
 
             {isSignUp && (
               <>
+                {/* Name Field with Real-Time Validation Feedback */}
                 <div className={styles.inputGroup}>
-                  <label>{accountType === 'organization' ? 'Organization Name' : 'Full Name'}</label>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <label style={{ margin: 0 }}>{accountType === 'organization' ? 'Organization Name' : 'Full Name'}</label>
+                    {name.trim() && isNameValid && (
+                      <span style={{ fontSize: '0.78rem', color: '#10B981', fontWeight: 600 }}>
+                        ✓ Genuine Name
+                      </span>
+                    )}
+                  </div>
                   <input
                     type="text"
                     required
                     value={name}
-                    onChange={(e) => setName(e.target.value)}
+                    onChange={(e) => {
+                      setName(e.target.value);
+                      if (error) setError('');
+                    }}
                     placeholder={accountType === 'organization' ? 'e.g. Deaf Welfare Association' : 'e.g. John Doe'}
+                    style={
+                      name.trim()
+                        ? {
+                            borderColor: isNameValid ? '#10B981' : '#EF4444',
+                            boxShadow: isNameValid
+                              ? '0 0 0 1px rgba(16, 185, 129, 0.2)'
+                              : '0 0 0 1px rgba(239, 68, 68, 0.2)',
+                          }
+                        : {}
+                    }
                   />
+                  {/* Real-time name validation feedback */}
+                  {name.trim().length > 0 && (
+                    isNameValid ? (
+                      <div className={styles.emailValidBadge}>
+                        <span>✓</span>
+                        <span>Valid name format</span>
+                      </div>
+                    ) : (
+                      <div className={styles.emailErrorBadge}>
+                        <span>⚠️</span>
+                        <span>{nameValidation.message}</span>
+                      </div>
+                    )
+                  )}
                 </div>
 
                 {accountType === 'organization' && (
@@ -626,26 +673,26 @@ export default function LoginPage() {
               )}
             </div>
 
-            {/* Password Field — Gated until a valid, authentic email is entered */}
+            {/* Password Field — Gated until both name and email are valid */}
             <div
-              className={`${styles.inputGroup} ${isSignUp && !isEmailValid ? styles.lockedGroup : ''}`}
-              style={isSignUp && !isEmailValid ? { opacity: 0.6 } : {}}
+              className={`${styles.inputGroup} ${isSignUp && !isReadyForPassword ? styles.lockedGroup : ''}`}
+              style={isSignUp && !isReadyForPassword ? { opacity: 0.6 } : {}}
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
                 <label style={{ margin: 0 }}>Password</label>
-                {isSignUp && !isEmailValid && (
+                {isSignUp && !isReadyForPassword && (
                   <span className={styles.lockedPill}>
-                    🔒 Enter valid email above to unlock
+                    🔒 Enter valid name & email first
                   </span>
                 )}
               </div>
               <input
                 type="password"
                 required
-                disabled={isSignUp && !isEmailValid}
+                disabled={isSignUp && !isReadyForPassword}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder={isSignUp && !isEmailValid ? 'Locked: Enter valid email above first' : '••••••••'}
+                placeholder={isSignUp && !isReadyForPassword ? 'Locked: Enter valid name & email above first' : '••••••••'}
               />
 
               {/* Real-time strong password rules checklist during sign-up */}
@@ -688,7 +735,7 @@ export default function LoginPage() {
 
             <button
               type="submit"
-              disabled={loading || (isSignUp && (!isEmailValid || !isPasswordValid))}
+              disabled={loading || (isSignUp && (!isNameValid || !isEmailValid || !isPasswordValid))}
               className={styles.submitBtn}
             >
               {loading
