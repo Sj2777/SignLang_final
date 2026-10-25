@@ -10,14 +10,23 @@ export default function StatsSection() {
       setStats(getPlatformLiveStats());
     };
 
+    // Listen to real-time events across windows and local actions
     window.addEventListener('storage', handleUpdate);
     window.addEventListener('focus', handleUpdate);
     window.addEventListener('handspeak_quiz_updated', handleUpdate);
+    window.addEventListener('handspeak_account_updated', handleUpdate);
+    window.addEventListener('handspeak_org_updated', handleUpdate);
+
+    // Spontaneous live polling every 3 seconds to guarantee real-time updates
+    const intervalId = setInterval(handleUpdate, 3000);
 
     return () => {
       window.removeEventListener('storage', handleUpdate);
       window.removeEventListener('focus', handleUpdate);
       window.removeEventListener('handspeak_quiz_updated', handleUpdate);
+      window.removeEventListener('handspeak_account_updated', handleUpdate);
+      window.removeEventListener('handspeak_org_updated', handleUpdate);
+      clearInterval(intervalId);
     };
   }, []);
 

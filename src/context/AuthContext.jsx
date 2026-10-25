@@ -8,6 +8,7 @@ import {
   userFromCachedProfile,
 } from '../lib/offlineDb';
 import useOnlineStatus from '../hooks/useOnlineStatus';
+import { hashPassword, verifyPassword, isValidEmail, validatePassword } from '../lib/crypto';
 
 const AuthContext = createContext({});
 const SESSION_RETRY_DELAYS_MS = [500, 1500];
@@ -232,7 +233,9 @@ export const AuthProvider = ({ children }) => {
 
     // 1. If account is found locally:
     if (localAccount) {
-      if (localAccount.password === password) {
+      const storedHash = localAccount.passwordHash || localAccount.password;
+      const isMatch = await verifyPassword(password, storedHash);
+      if (isMatch) {
         const authenticatedUser = {
           id: localAccount.id,
           email: localAccount.email,
@@ -310,6 +313,15 @@ export const AuthProvider = ({ children }) => {
       return { data: null, error: new Error('Please fill in all required fields.') };
     }
 
+    if (!isValidEmail(normalizedEmail)) {
+      return { data: null, error: new Error('Please enter a valid email address (e.g. name@example.com).') };
+    }
+
+    const pwdValidation = validatePassword(password);
+    if (!pwdValidation.valid) {
+      return { data: null, error: new Error(pwdValidation.message) };
+    }
+
     const accounts = JSON.parse(localStorage.getItem('handspeak_accounts') || '{}');
 
     let supabaseUser = null;
@@ -324,7 +336,10 @@ export const AuthProvider = ({ children }) => {
       console.warn('Supabase signUp warning:', e);
     }
 
-    // Create user profile instantly without waiting for any email confirmation
+    // Hash password with Web Crypto SHA-256 for offline storage safety
+    const passwordHash = await hashPassword(password);
+
+    // Create user profile instantly
     const newUser = {
       id: supabaseUser?.id || 'usr_' + Date.now(),
       email: normalizedEmail,
@@ -333,11 +348,12 @@ export const AuthProvider = ({ children }) => {
         name: metaData.name || normalizedEmail.split('@')[0],
         contact_num: metaData.contact_num || '',
         address: metaData.address || '',
+        org_status: metaData.account_type === 'organization' ? 'pending' : 'active',
       },
     };
 
-    // Save to local device accounts for seamless instant login
-    accounts[normalizedEmail] = { ...newUser, password };
+    // Save to local device accounts with secure hash
+    accounts[normalizedEmail] = { ...newUser, passwordHash };
     localStorage.setItem('handspeak_accounts', JSON.stringify(accounts));
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('handspeak_account_updated'));
@@ -401,6 +417,9 @@ export const AuthProvider = ({ children }) => {
     updateUser(null);
     setAuthMessage('');
     localStorage.removeItem('handspeak_active_user');
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('handspeak_logout'));
+    }
     try {
       return await supabase.auth.signOut({ scope: 'local' });
     } finally {
