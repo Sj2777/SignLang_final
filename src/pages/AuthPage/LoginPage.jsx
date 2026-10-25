@@ -51,6 +51,25 @@ export default function LoginPage() {
   const { user, signIn, signUp, resetPassword, isOffline, authMessage, clearAuthMessage } = useAuth();
   const navigate = useNavigate();
 
+  // Parse error params from Supabase redirects (e.g. #error=access_denied&error_code=otp_expired)
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.location.hash) {
+      const hash = window.location.hash.substring(1);
+      const params = new URLSearchParams(hash);
+      const errDesc = params.get('error_description');
+      const errCode = params.get('error_code');
+      if (errDesc) {
+        const readable = decodeURIComponent(errDesc.replace(/\+/g, ' '));
+        if (errCode === 'otp_expired' || readable.toLowerCase().includes('expired')) {
+          setError('This verification link has expired or has already been used. Please log in below, or request a fresh link if not yet verified.');
+        } else {
+          setError(readable);
+        }
+        window.history.replaceState(null, '', window.location.pathname);
+      }
+    }
+  }, []);
+
   // If user is authenticated (via session or email link confirmation), go to dashboard
   useEffect(() => {
     if (user) {
