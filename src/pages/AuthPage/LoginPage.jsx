@@ -118,32 +118,13 @@ export default function LoginPage() {
 
   const isNameValid = !isSignUp || nameValidation.valid;
 
-  // Real-time duplicate email detection: cannot register same email for different account/name
-  const isEmailAlreadyRegistered = useMemo(() => {
-    const raw = (email || '').trim().toLowerCase();
-    if (!raw) return false;
-    try {
-      const accounts = JSON.parse(localStorage.getItem('handspeak_accounts') || '{}');
-      return Boolean(accounts[raw]);
-    } catch {
-      return false;
-    }
-  }, [email]);
-
-  // Real-time email validation
+  // Real-time email validation (format, authenticity, non-dummy domain)
   const emailValidation = useMemo(() => {
     if (!email.trim()) return { valid: false, message: '' };
-    const res = validateEmail(email);
-    if (isSignUp && isEmailAlreadyRegistered) {
-      return {
-        valid: false,
-        message: 'An account with this email already exists. Please log in instead or use another email.',
-      };
-    }
-    return res;
-  }, [email, isSignUp, isEmailAlreadyRegistered]);
+    return validateEmail(email);
+  }, [email]);
 
-  const isEmailValid = emailValidation.valid && (!isSignUp || !isEmailAlreadyRegistered);
+  const isEmailValid = emailValidation.valid;
 
   // Real-time password requirement tests
   const pwdChecks = {
@@ -160,10 +141,6 @@ export default function LoginPage() {
 
   const validateInputs = () => {
     if (!email.trim()) throw new Error('Please enter your email address.');
-    
-    if (isSignUp && isEmailAlreadyRegistered) {
-      throw new Error('An account with this email address is already registered. Please log in instead or use another email.');
-    }
 
     const emailRes = validateEmail(email);
     if (!emailRes.valid) {

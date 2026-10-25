@@ -358,33 +358,51 @@ export const AuthProvider = ({ children }) => {
     }
 
     const accounts = JSON.parse(localStorage.getItem('handspeak_accounts') || '{}');
-    if (accounts[normalizedEmail]) {
+    if ((isOffline || !navigator.onLine) && accounts[normalizedEmail]) {
       return {
         data: null,
-        error: new Error('An account with email "' + normalizedEmail + '" already exists. Please log in instead or use another email.'),
+        error: new Error('An offline account with email "' + normalizedEmail + '" already exists on this device. Please log in instead.'),
       };
     }
 
     let supabaseUser = null;
-    try {
-      const redirectUrl = typeof window !== 'undefined' ? `${window.location.origin}/dashboard` : undefined;
-      const res = await supabase.auth.signUp({
-        email: normalizedEmail,
-        password,
-        options: {
-          data: metaData,
-          emailRedirectTo: redirectUrl,
-        },
-      });
-      supabaseUser = res.data?.user;
-    } catch (e) {
-      console.warn('Supabase signUp warning:', e);
+    let isConfirmationRequired = false;
+
+    if (navigator.onLine && !isOffline) {
+      try {
+        const redirectUrl = typeof window !== 'undefined' ? `${window.location.origin}/dashboard` : undefined;
+        const res = await supabase.auth.signUp({
+          email: normalizedEmail,
+          password,
+          options: {
+            data: metaData,
+            emailRedirectTo: redirectUrl,
+          },
+        });
+
+        if (res.error) {
+          throw new Error(res.error.message || 'Supabase signup failed.');
+        }
+
+        if (res.data?.user?.identities?.length === 0) {
+          throw new Error('An account with this email already exists in Supabase. Please switch to Log in.');
+        }
+
+        supabaseUser = res.data?.user;
+        // If Supabase returned user but no active session, email confirmation is required!
+        if (!res.data?.session && res.data?.user) {
+          isConfirmationRequired = true;
+        }
+      } catch (e) {
+        console.error('Supabase signUp error:', e);
+        return { data: null, error: e };
+      }
     }
 
     // Hash password with Web Crypto SHA-256 for offline storage safety
     const passwordHash = await hashPassword(password);
 
-    // Create user profile instantly
+    // Create user profile
     const newUser = {
       id: supabaseUser?.id || 'usr_' + Date.now(),
       email: normalizedEmail,
@@ -395,22 +413,32 @@ export const AuthProvider = ({ children }) => {
         address: metaData.address || '',
         org_status: metaData.account_type === 'organization' ? 'pending' : 'active',
       },
+      passwordHash,
     };
 
     // Save to local device accounts with secure hash
-    accounts[normalizedEmail] = { ...newUser, passwordHash };
+    accounts[normalizedEmail] = newUser;
     localStorage.setItem('handspeak_accounts', JSON.stringify(accounts));
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('handspeak_account_updated'));
     }
 
-    // Immediately authenticate user on this device
-    updateUser(newUser);
-    setAuthMessage('');
-    await persistProfile(newUser);
-    localStorage.setItem('handspeak_active_user', JSON.stringify(newUser));
+    // ONLY immediately authenticate if confirmation is NOT required (e.g. offline mode or auto-confirmed)
+    if (!isConfirmationRequired) {
+      updateUser(newUser);
+      setAuthMessage('');
+      await persistProfile(newUser);
+      localStorage.setItem('handspeak_active_user', JSON.stringify(newUser));
+    }
 
-    return { data: { user: newUser, session: { user: newUser } }, error: null };
+    return {
+      data: {
+        user: newUser,
+        session: isConfirmationRequired ? null : { user: newUser },
+        isConfirmationRequired,
+      },
+      error: null,
+    };
   };
 
   const resetPassword = async (email, newPassword) => {
