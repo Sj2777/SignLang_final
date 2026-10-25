@@ -8,7 +8,7 @@ import {
   userFromCachedProfile,
 } from '../lib/offlineDb';
 import useOnlineStatus from '../hooks/useOnlineStatus';
-import { hashPassword, verifyPassword, isValidEmail, validatePassword } from '../lib/crypto';
+import { hashPassword, verifyPassword, isValidEmail, validateEmail, validatePassword } from '../lib/crypto';
 
 const AuthContext = createContext({});
 const SESSION_RETRY_DELAYS_MS = [500, 1500];
@@ -313,8 +313,9 @@ export const AuthProvider = ({ children }) => {
       return { data: null, error: new Error('Please fill in all required fields.') };
     }
 
-    if (!isValidEmail(normalizedEmail)) {
-      return { data: null, error: new Error('Please enter a valid email address (e.g. name@example.com).') };
+    const emailValidation = validateEmail(normalizedEmail);
+    if (!emailValidation.valid) {
+      return { data: null, error: new Error(emailValidation.message) };
     }
 
     const pwdValidation = validatePassword(password);

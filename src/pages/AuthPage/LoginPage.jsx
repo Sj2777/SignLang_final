@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { isValidEmail, validatePassword, isValidIndianPhone } from '../../lib/crypto';
+import { validateEmail, isValidEmail, validatePassword, isValidIndianPhone } from '../../lib/crypto';
 import styles from './Auth.module.css';
 
 const HandShakeSVG = () => (
@@ -38,6 +38,12 @@ export default function LoginPage() {
   const [generatedOtp, setGeneratedOtp] = useState('');
   const [enteredOtp, setEnteredOtp] = useState('');
 
+  // Email verification state for all signups
+  const [isVerifyingEmailOtp, setIsVerifyingEmailOtp] = useState(false);
+  const [generatedEmailOtp, setGeneratedEmailOtp] = useState('');
+  const [enteredEmailOtp, setEnteredEmailOtp] = useState('');
+  const [emailResendTimer, setEmailResendTimer] = useState(30);
+
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
   const [loading, setLoading] = useState(false);
@@ -52,10 +58,24 @@ export default function LoginPage() {
     }
   }, [user, navigate]);
 
+  // Resend OTP Countdown Timer
+  useEffect(() => {
+    let interval = null;
+    if (isVerifyingEmailOtp && emailResendTimer > 0) {
+      interval = setInterval(() => {
+        setEmailResendTimer((prev) => (prev > 0 ? prev - 1 : 0));
+      }, 1000);
+    }
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [isVerifyingEmailOtp, emailResendTimer]);
+
   const handleToggleMode = () => {
     setIsSignUp(!isSignUp);
     setIsForgotPassword(false);
     setIsVerifyingOtp(false);
+    setIsVerifyingEmailOtp(false);
     setAccountType(null);
     setError('');
     setSuccessMsg('');
@@ -65,10 +85,19 @@ export default function LoginPage() {
   const handleSelectAccountType = (type) => {
     setAccountType(type);
     setIsVerifyingOtp(false);
+    setIsVerifyingEmailOtp(false);
     setError('');
     setSuccessMsg('');
     clearAuthMessage();
   };
+
+  // Real-time email validation
+  const emailValidation = useMemo(() => {
+    if (!email.trim()) return { valid: false, message: '' };
+    return validateEmail(email);
+  }, [email]);
+
+  const isEmailValid = emailValidation.valid;
 
   // Real-time password requirement tests
   const pwdChecks = {
@@ -78,10 +107,14 @@ export default function LoginPage() {
     special: /[^A-Za-z0-9]/.test(password),
   };
 
+  const isPasswordValid = pwdChecks.length && pwdChecks.upper && pwdChecks.number && pwdChecks.special;
+
   const validateInputs = () => {
     if (!email.trim()) throw new Error('Please enter your email address.');
-    if (!isValidEmail(email)) {
-      throw new Error('Please enter a valid email address (e.g. name@example.com).');
+    
+    const emailRes = validateEmail(email);
+    if (!emailRes.valid) {
+      throw new Error(emailRes.message);
     }
 
     if (isSignUp) {
@@ -119,40 +152,31 @@ export default function LoginPage() {
       return;
     }
 
-    // Organization Mobile Verification Gate
+    // Step 1 for Organization: Verify Mobile Number First
     if (isSignUp && accountType === 'organization' && !isVerifyingOtp) {
       const demoCode = '482910';
       setGeneratedOtp(demoCode);
       setIsVerifyingOtp(true);
-      setSuccessMsg(`📱 Verification code sent to ${contactNum}. Use Demo Code: ${demoCode}`);
+      setSuccessMsg(`📱 Mobile OTP sent to ${contactNum}. Evaluation Code: ${demoCode}`);
       return;
     }
 
+    // Step 2 for Learner: Verify Email Address via OTP
+    if (isSignUp && accountType === 'learner' && !isVerifyingEmailOtp) {
+      const demoCode = '582914';
+      setGeneratedEmailOtp(demoCode);
+      setIsVerifyingEmailOtp(true);
+      setEmailResendTimer(30);
+      setSuccessMsg(`✉️ Verification code sent to ${email}. Evaluation Code: ${demoCode}`);
+      return;
+    }
+
+    // Login Flow
     setLoading(true);
-
     try {
-      if (isSignUp) {
-        const metaData = {
-          account_type: accountType,
-          name: name.trim(),
-        };
-
-        if (accountType === 'organization') {
-          metaData.contact_num = contactNum.trim();
-          metaData.address = address.trim();
-          metaData.phone_verified = true;
-          metaData.org_status = 'pending'; // Requires approval before public listing
-        }
-
-        const { error } = await signUp(email, password, metaData);
-        if (error) throw error;
-
-        navigate('/dashboard', { replace: true });
-      } else {
-        const { error } = await signIn(email, password);
-        if (error) throw error;
-        navigate('/dashboard', { replace: true });
-      }
+      const { error } = await signIn(email, password);
+      if (error) throw error;
+      navigate('/dashboard', { replace: true });
     } catch (err) {
       setError(err.message);
     } finally {
@@ -160,26 +184,51 @@ export default function LoginPage() {
     }
   };
 
-  const handleVerifyOtp = async (e) => {
+  // Step 2 for Organization: Once Mobile OTP is verified, transition to Email OTP
+  const handleVerifyMobileOtp = async (e) => {
     e.preventDefault();
     setError('');
     setSuccessMsg('');
 
     if (!enteredOtp || enteredOtp.trim() !== generatedOtp) {
-      setError(`Invalid verification code. Please enter ${generatedOtp} to complete mobile verification.`);
+      setError(`Invalid verification code. Please enter the demo code: ${generatedOtp}`);
+      return;
+    }
+
+    // Mobile verified successfully! Now proceed to Email OTP verification
+    setIsVerifyingOtp(false);
+    const emailCode = '582914';
+    setGeneratedEmailOtp(emailCode);
+    setIsVerifyingEmailOtp(true);
+    setEmailResendTimer(30);
+    setSuccessMsg(`📱 Mobile phone verified! ✉️ Now enter the 6-digit confirmation code sent to ${email}. Demo Code: ${emailCode}`);
+  };
+
+  // Final Step: Complete Email OTP Verification and Create Account
+  const handleVerifyEmailOtp = async (e) => {
+    e.preventDefault();
+    setError('');
+    setSuccessMsg('');
+
+    if (!enteredEmailOtp || enteredEmailOtp.trim() !== generatedEmailOtp) {
+      setError(`Invalid code. Please enter the 6-digit verification code (${generatedEmailOtp}) sent to ${email}.`);
       return;
     }
 
     setLoading(true);
     try {
       const metaData = {
-        account_type: 'organization',
+        account_type: accountType,
         name: name.trim(),
-        contact_num: contactNum.trim(),
-        address: address.trim(),
-        phone_verified: true,
-        org_status: 'pending',
+        email_verified: true,
       };
+
+      if (accountType === 'organization') {
+        metaData.contact_num = contactNum.trim();
+        metaData.address = address.trim();
+        metaData.phone_verified = true;
+        metaData.org_status = 'pending'; // Requires approval before public directory listing
+      }
 
       const { error } = await signUp(email, password, metaData);
       if (error) throw error;
@@ -192,13 +241,22 @@ export default function LoginPage() {
     }
   };
 
+  const handleResendEmailOtp = () => {
+    const newCode = '582914';
+    setGeneratedEmailOtp(newCode);
+    setEmailResendTimer(30);
+    setEnteredEmailOtp('');
+    setSuccessMsg(`A new verification code has been dispatched to ${email}. Demo Code: ${newCode}`);
+  };
+
   const handleResetPassword = async (e) => {
     e.preventDefault();
     setError('');
     setSuccessMsg('');
 
-    if (!isValidEmail(email)) {
-      setError('Please enter a valid email address.');
+    const emailRes = validateEmail(email);
+    if (!emailRes.valid) {
+      setError(emailRes.message);
       return;
     }
 
@@ -235,6 +293,7 @@ export default function LoginPage() {
   const getHeading = () => {
     if (isForgotPassword) return 'Reset Password';
     if (isVerifyingOtp) return 'Verify Mobile Number';
+    if (isVerifyingEmailOtp) return 'Verify Email Address';
     if (isSignUp) {
       return accountType
         ? `Sign Up as ${accountType === 'learner' ? 'Learner' : 'Organization'}`
@@ -246,6 +305,7 @@ export default function LoginPage() {
   const getSubtitle = () => {
     if (isForgotPassword) return 'Enter your account email and choose a strong password.';
     if (isVerifyingOtp) return `Enter the SMS verification code sent to ${contactNum}.`;
+    if (isVerifyingEmailOtp) return `Enter the 6-digit confirmation code sent to ${email}.`;
     if (isSignUp) {
       return accountType
         ? 'Fill in your details below to create your account.'
@@ -264,7 +324,7 @@ export default function LoginPage() {
 
         {isOffline && (
           <div className={styles.offlineBanner} role="status">
-            You’re offline. HandSpeak is running in offline mode. Your credentials are securely cached on this device.
+            You’re offline. HandSpeak is running in offline mode. Your credentials and learning progress are securely stored on this device.
           </div>
         )}
         {successMsg && (
@@ -296,7 +356,7 @@ export default function LoginPage() {
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="you@example.com"
+                placeholder="you@gmail.com"
               />
             </div>
 
@@ -328,8 +388,11 @@ export default function LoginPage() {
           </form>
         ) : isVerifyingOtp ? (
           /* 2. ORGANIZATION MOBILE OTP VERIFICATION STEP */
-          <form onSubmit={handleVerifyOtp} className={styles.form}>
+          <form onSubmit={handleVerifyMobileOtp} className={styles.form}>
             <div className={styles.otpBox}>
+              <div style={{ display: 'inline-flex', width: '48px', height: '48px', borderRadius: '50%', background: 'rgba(244, 63, 94, 0.1)', color: 'var(--color-accent)', alignItems: 'center', justifyContent: 'center', margin: '0 auto', fontSize: '1.4rem' }}>
+                📱
+              </div>
               <p className={styles.otpHint}>
                 Security Requirement: Accredited organizations must verify their official contact number before onboarding.
               </p>
@@ -348,26 +411,105 @@ export default function LoginPage() {
                 />
               </div>
 
-              <div>
-                <span className={styles.demoOtpBadge}>Demo OTP Code: {generatedOtp}</span>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', alignItems: 'center' }}>
+                <span className={styles.demoOtpBadge}>Demo OTP Code: <strong>{generatedOtp}</strong></span>
+                <button
+                  type="button"
+                  onClick={() => setEnteredOtp(generatedOtp)}
+                  className={styles.autoFillBtn}
+                >
+                  ⚡ Auto-fill Mobile Code
+                </button>
               </div>
             </div>
 
             <button type="submit" disabled={loading || enteredOtp.length < 6} className={styles.submitBtn}>
-              {loading ? 'Verifying Mobile...' : 'Verify Mobile & Create Account'}
+              {loading ? 'Verifying Mobile...' : 'Verify Phone & Continue to Email Step →'}
             </button>
 
             <button
               type="button"
               onClick={() => setIsVerifyingOtp(false)}
               className={styles.backBtn}
-              style={{ marginTop: '0.5rem' }}
+              style={{ marginTop: '0.5rem', justifyContent: 'center' }}
             >
-              ← Edit Details
+              ← Edit Phone Details
+            </button>
+          </form>
+        ) : isVerifyingEmailOtp ? (
+          /* 3. EMAIL OTP AUTHENTICATION STEP */
+          <form onSubmit={handleVerifyEmailOtp} className={styles.form}>
+            <div className={styles.otpBox}>
+              <div style={{ display: 'inline-flex', width: '48px', height: '48px', borderRadius: '50%', background: 'rgba(37, 99, 235, 0.1)', color: 'var(--color-primary)', alignItems: 'center', justifyContent: 'center', margin: '0 auto', fontSize: '1.4rem' }}>
+                ✉️
+              </div>
+              <p className={styles.otpHint}>
+                A 6-digit verification code has been dispatched to <strong>{email}</strong>. Enter the code below to confirm and activate your account.
+              </p>
+
+              <div className={styles.inputGroup}>
+                <label style={{ textAlign: 'center' }}>6-Digit Email Verification Code</label>
+                <input
+                  type="text"
+                  maxLength={6}
+                  required
+                  className={styles.otpInput}
+                  value={enteredEmailOtp}
+                  onChange={(e) => setEnteredEmailOtp(e.target.value.replace(/\D/g, ''))}
+                  placeholder="------"
+                  autoFocus
+                />
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', alignItems: 'center' }}>
+                <span className={styles.demoOtpBadge}>Evaluation / Demo OTP: <strong>{generatedEmailOtp}</strong></span>
+                <button
+                  type="button"
+                  onClick={() => setEnteredEmailOtp(generatedEmailOtp)}
+                  className={styles.autoFillBtn}
+                >
+                  ⚡ Auto-fill Demo Code
+                </button>
+              </div>
+
+              <div className={styles.resendRow}>
+                {emailResendTimer > 0 ? (
+                  <span>Resend code in {emailResendTimer}s</span>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handleResendEmailOtp}
+                    className={styles.resendBtn}
+                  >
+                    Resend Verification Code
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              disabled={loading || enteredEmailOtp.length < 6}
+              className={styles.submitBtn}
+            >
+              {loading ? 'Verifying...' : 'Verify Email & Complete Registration'}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setIsVerifyingEmailOtp(false);
+                setError('');
+                setSuccessMsg('');
+              }}
+              className={styles.backBtn}
+              style={{ marginTop: '0.5rem', justifyContent: 'center' }}
+            >
+              ← Edit Email / Details
             </button>
           </form>
         ) : showSelectionCards ? (
-          /* 3. ACCOUNT TYPE PICKER */
+          /* 4. ACCOUNT TYPE PICKER */
           <div className={styles.cardSelectionGrid}>
             <div className={styles.selectionCard} onClick={() => handleSelectAccountType('learner')}>
               <div className={styles.iconWrap}>
@@ -386,7 +528,7 @@ export default function LoginPage() {
             </div>
           </div>
         ) : (
-          /* 4. MAIN SIGNUP / LOGIN FORM */
+          /* 5. MAIN SIGNUP / LOGIN FORM */
           <form onSubmit={handleSubmit} className={styles.form} noValidate>
             {isSignUp && accountType && (
               <button
@@ -438,25 +580,72 @@ export default function LoginPage() {
               </>
             )}
 
+            {/* Email Field with Instant Real-Time Validation Feedback */}
             <div className={styles.inputGroup}>
-              <label>Email Address</label>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <label style={{ margin: 0 }}>Email Address</label>
+                {isSignUp && email.trim() && isEmailValid && (
+                  <span style={{ fontSize: '0.78rem', color: '#10B981', fontWeight: 600 }}>
+                    ✓ Authentic Domain
+                  </span>
+                )}
+              </div>
               <input
                 type="email"
                 required
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="you@example.com"
+                onChange={(e) => {
+                  setEmail(e.target.value);
+                  if (error) setError('');
+                }}
+                placeholder="you@gmail.com"
+                style={
+                  isSignUp && email.trim()
+                    ? {
+                        borderColor: isEmailValid ? '#10B981' : '#EF4444',
+                        boxShadow: isEmailValid
+                          ? '0 0 0 1px rgba(16, 185, 129, 0.2)'
+                          : '0 0 0 1px rgba(239, 68, 68, 0.2)',
+                      }
+                    : {}
+                }
               />
+              {/* Real-time email validation badge */}
+              {isSignUp && email.trim().length > 0 && (
+                isEmailValid ? (
+                  <div className={styles.emailValidBadge}>
+                    <span>✓</span>
+                    <span>Valid & authentic email format</span>
+                  </div>
+                ) : (
+                  <div className={styles.emailErrorBadge}>
+                    <span>⚠️</span>
+                    <span>{emailValidation.message}</span>
+                  </div>
+                )
+              )}
             </div>
 
-            <div className={styles.inputGroup}>
-              <label>Password</label>
+            {/* Password Field — Gated until a valid, authentic email is entered */}
+            <div
+              className={`${styles.inputGroup} ${isSignUp && !isEmailValid ? styles.lockedGroup : ''}`}
+              style={isSignUp && !isEmailValid ? { opacity: 0.6 } : {}}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
+                <label style={{ margin: 0 }}>Password</label>
+                {isSignUp && !isEmailValid && (
+                  <span className={styles.lockedPill}>
+                    🔒 Enter valid email above to unlock
+                  </span>
+                )}
+              </div>
               <input
                 type="password"
                 required
+                disabled={isSignUp && !isEmailValid}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
+                placeholder={isSignUp && !isEmailValid ? 'Locked: Enter valid email above first' : '••••••••'}
               />
 
               {/* Real-time strong password rules checklist during sign-up */}
@@ -497,13 +686,21 @@ export default function LoginPage() {
               </div>
             )}
 
-            <button type="submit" disabled={loading} className={styles.submitBtn}>
-              {loading ? 'Processing...' : (isSignUp ? (accountType === 'organization' ? 'Continue to Mobile Verification →' : 'Create Account') : 'Log In')}
+            <button
+              type="submit"
+              disabled={loading || (isSignUp && (!isEmailValid || !isPasswordValid))}
+              className={styles.submitBtn}
+            >
+              {loading
+                ? 'Processing...'
+                : (isSignUp
+                  ? (accountType === 'organization' ? 'Continue to Mobile Verification →' : 'Continue to Email Verification →')
+                  : 'Log In')}
             </button>
           </form>
         )}
 
-        {!isForgotPassword && !isVerifyingOtp && (
+        {!isForgotPassword && !isVerifyingOtp && !isVerifyingEmailOtp && (
           <div className={styles.toggleText}>
             {isSignUp ? 'Already have an account?' : "Don't have an account?"}
             <button

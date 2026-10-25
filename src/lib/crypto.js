@@ -27,10 +27,101 @@ export async function verifyPassword(plaintext, storedHash) {
 }
 
 /**
- * Validates email format with a standard regex.
+ * Set of known disposable, temporary, dummy, and test domains.
+ */
+const BLOCKED_DOMAINS = new Set([
+  'test.com', 'test.in', 'test.org', 'test.net', 'test.co', 'test.io',
+  'testing.com', 'testing.org',
+  'example.com', 'example.org', 'example.net', 'example.edu',
+  'sample.com', 'sample.org', 'sample.net',
+  'fake.com', 'fake.org', 'fake.net', 'fakemail.com',
+  'dummy.com', 'dummy.org', 'dummy.net',
+  'temp.com', 'tempmail.com', 'temp-mail.org', '10minutemail.com',
+  'mailinator.com', 'guerrillamail.com', 'trashmail.com', 'throwaway.com',
+  'yopmail.com', 'xyz.com', 'abc.com', 'foo.com', 'bar.com', 'none.com',
+  'dispostable.com', 'maildrop.cc', 'sharklasers.com', 'getairmail.com'
+]);
+
+/**
+ * Thorough email validation:
+ * 1. Checks standard RFC syntax.
+ * 2. Checks mailbox prefix length (at least 2 chars).
+ * 3. Rejects dummy/test/disposable domains (e.g. test.com, fake.com, example.com).
+ * 4. Ensures domain has a valid TLD of at least 2 alpha characters.
+ * Returns { valid: boolean, message: string }
+ */
+export function validateEmail(email) {
+  const raw = (email || '').trim();
+  if (!raw) {
+    return { valid: false, message: 'Email address cannot be empty.' };
+  }
+
+  // Basic structure check
+  if (!raw.includes('@')) {
+    return { valid: false, message: 'Email must contain an "@" symbol.' };
+  }
+
+  const parts = raw.split('@');
+  if (parts.length !== 2) {
+    return { valid: false, message: 'Email can only contain one "@" symbol.' };
+  }
+
+  const [localPart, domainPart] = parts;
+
+  // Local part (before @)
+  if (!localPart || localPart.length < 2) {
+    return { valid: false, message: 'Email username must be at least 2 characters before "@".' };
+  }
+  if (!/^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+$/.test(localPart)) {
+    return { valid: false, message: 'Email username contains invalid characters.' };
+  }
+  if (localPart.startsWith('.') || localPart.endsWith('.') || localPart.includes('..')) {
+    return { valid: false, message: 'Email username cannot start, end, or contain consecutive dots.' };
+  }
+
+  // Domain part (after @)
+  if (!domainPart || !domainPart.includes('.')) {
+    return { valid: false, message: 'Please enter a complete domain with an extension (e.g. .com, .edu, .org).' };
+  }
+
+  const domainLower = domainPart.toLowerCase();
+
+  // Check blocked test/dummy/disposable domains
+  if (BLOCKED_DOMAINS.has(domainLower)) {
+    return {
+      valid: false,
+      message: `Test or dummy domain "@${domainLower}" is prohibited. Please enter an authentic email.`
+    };
+  }
+
+  // Check domain structure
+  const domainSegments = domainLower.split('.');
+  if (domainSegments.some((seg) => !seg || seg.length === 0)) {
+    return { valid: false, message: 'Domain extension format is invalid.' };
+  }
+
+  const tld = domainSegments[domainSegments.length - 1];
+  if (!tld || tld.length < 2 || !/^[a-z]+$/.test(tld)) {
+    return { valid: false, message: 'Domain extension must have at least 2 letters (e.g., .com, .org, .in).' };
+  }
+
+  // Prohibit placeholder words anywhere in the domain name
+  const disallowedNames = ['test', 'testing', 'fake', 'dummy', 'sample', 'temp', 'invalid'];
+  if (domainSegments.some((seg) => disallowedNames.includes(seg))) {
+    return {
+      valid: false,
+      message: `Test or dummy domain "@${domainLower}" is not allowed. Please enter an authentic email.`
+    };
+  }
+
+  return { valid: true, message: 'Valid & authentic email format.' };
+}
+
+/**
+ * Validates email format boolean check.
  */
 export function isValidEmail(email) {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test((email || '').trim());
+  return validateEmail(email).valid;
 }
 
 /**
