@@ -229,6 +229,12 @@ export const AuthProvider = ({ children }) => {
     }
 
     const accounts = JSON.parse(localStorage.getItem('handspeak_accounts') || '{}');
+    if (accounts[normalizedEmail]) {
+      return {
+        data: null,
+        error: new Error('An account with email "' + normalizedEmail + '" already exists. Please log in instead or use another email.'),
+      };
+    }
     const localAccount = accounts[normalizedEmail];
 
     // 1. If account is found locally:

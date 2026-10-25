@@ -66,7 +66,7 @@ export function getPlatformLiveStats() {
     return {
       learners: learnerCount,
       organizations: orgCount,
-      vocabularyClasses: 33, // 26 A–Z + 7 Indian word signs
+      vocabularyClasses: 36, // 26 A–Z letters + 10 digits (0–9) = 36 signs
       totalQuizzes,
       signsTranslated: totalSignsTranslated,
       communityTotal: Math.max(1, learnerCount + orgCount),
@@ -76,7 +76,7 @@ export function getPlatformLiveStats() {
     return {
       learners: 0,
       organizations: 4,
-      vocabularyClasses: 33,
+      vocabularyClasses: 36, // 26 A–Z letters + 10 digits (0–9) = 36 signs
       totalQuizzes: 0,
       signsTranslated: 0,
       communityTotal: 4,

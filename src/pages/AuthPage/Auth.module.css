@@ -452,3 +452,52 @@
 .resendBtn:hover {
   color: var(--color-primary-hover, #2563EB);
 }
+
+/* Incoming simulated notification banner (replaces tacky demo OTP badge) */
+.incomingNotificationBanner {
+  background: linear-gradient(135deg, #1E293B, #0F172A);
+  color: #F8FAFC;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 10px;
+  padding: 0.85rem 1rem;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.25);
+  text-align: left;
+  animation: slideDown 0.3s ease-out;
+  margin-bottom: 0.5rem;
+}
+
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.notificationHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #94A3B8;
+  margin-bottom: 0.35rem;
+}
+
+.notificationTime {
+  font-size: 0.72rem;
+  color: #64748B;
+}
+
+.notificationBody {
+  font-size: 0.85rem;
+  color: #E2E8F0;
+  line-height: 1.4;
+}
+
+.notificationCode {
+  color: #38BDF8;
+  font-family: monospace;
+  font-size: 1.05rem;
+  letter-spacing: 0.08em;
+  background: rgba(56, 189, 248, 0.12);
+  padding: 0.1rem 0.4rem;
+  border-radius: 4px;
+}
