@@ -354,3 +354,101 @@
   border-radius: 6px;
   margin-top: 0.25rem;
 }
+
+/* Real-time Email Validation Badges */
+.emailValidBadge {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: #10B981;
+  font-size: 0.8rem;
+  font-weight: 600;
+  margin-top: 0.35rem;
+  animation: fadeIn 0.2s ease-in-out;
+}
+
+.emailErrorBadge {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: #EF4444;
+  font-size: 0.8rem;
+  font-weight: 500;
+  margin-top: 0.35rem;
+  line-height: 1.35;
+  animation: fadeIn 0.2s ease-in-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-2px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Locked Next Field Gate */
+.lockedPill {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #D97706;
+  background: rgba(245, 158, 11, 0.12);
+  border: 1px solid rgba(245, 158, 11, 0.25);
+  padding: 0.15rem 0.5rem;
+  border-radius: 9999px;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.lockedGroup {
+  transition: opacity 0.25s ease;
+}
+
+.lockedGroup input {
+  background: rgba(0, 0, 0, 0.03) !important;
+  cursor: not-allowed !important;
+  border-style: dashed !important;
+}
+
+/* Auto-fill & Resend Buttons */
+.autoFillBtn {
+  background: rgba(16, 185, 129, 0.12);
+  color: #047857;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  padding: 0.4rem 0.85rem;
+  border-radius: 6px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 0 auto;
+}
+
+.autoFillBtn:hover {
+  background: rgba(16, 185, 129, 0.22);
+}
+
+.resendRow {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-size: 0.85rem;
+  margin-top: 0.5rem;
+  color: var(--color-text-muted);
+}
+
+.resendBtn {
+  background: none;
+  border: none;
+  color: var(--color-primary);
+  font-weight: 600;
+  font-size: 0.85rem;
+  cursor: pointer;
+  padding: 0 0.25rem;
+  text-decoration: underline;
+}
+
+.resendBtn:hover {
+  color: var(--color-primary-hover, #2563EB);
+}
