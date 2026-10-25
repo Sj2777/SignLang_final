@@ -358,10 +358,10 @@ export const AuthProvider = ({ children }) => {
     }
 
     const accounts = JSON.parse(localStorage.getItem('handspeak_accounts') || '{}');
-    if (accounts[normalizedEmail]) {
+    if ((isOffline || !navigator.onLine) && accounts[normalizedEmail]) {
       return {
         data: null,
-        error: new Error('An account with email "' + normalizedEmail + '" already exists. Please log in instead or use another email.'),
+        error: new Error('An offline account with email "' + normalizedEmail + '" already exists on this device. Please log in instead.'),
       };
     }
 
