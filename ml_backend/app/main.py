@@ -6,8 +6,14 @@ from fastapi import FastAPI, File, UploadFile, HTTPException, WebSocket, WebSock
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
-from .schemas import PredictResponse, LandmarksPredictRequest
+from .schemas import (
+    PredictResponse,
+    LandmarksPredictRequest,
+    TextToISLRequest,
+    TextToISLResponse
+)
 from .predictor import predictor
+from .isl_translator import translate_text_to_isl
 
 app = FastAPI(
     title="HandSpeak ISL Translation API",
@@ -60,6 +66,14 @@ def predict_from_landmarks(payload: LandmarksPredictRequest):
     """
     result = predictor.predict_landmarks(payload.landmarks)
     return result
+
+@app.post("/translate/text-to-isl", response_model=TextToISLResponse, tags=["Translation"])
+def translate_to_isl(payload: TextToISLRequest):
+    """
+    Translates English/Hindi/Marathi text to Indian Sign Language (ISL) grammar structure,
+    identifying word-level signs, numbers, and fingerspelled sequences.
+    """
+    return translate_text_to_isl(payload.text, payload.mode or "grammar")
 
 @app.websocket("/ws/stream")
 async def websocket_stream(websocket: WebSocket):
