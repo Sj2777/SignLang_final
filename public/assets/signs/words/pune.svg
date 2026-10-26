@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 340" width="100%" height="100%">
+  <defs>
+    <linearGradient id="bg_PUNE" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1E293B"/>
+      <stop offset="100%" stop-color="#0F172A"/>
+    </linearGradient>
+    <linearGradient id="primary_PUNE" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#8B5CF6"/>
+      <stop offset="100%" stop-color="#38BDF8"/>
+    </linearGradient>
+    <filter id="glow_PUNE" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#8B5CF6" flood-opacity="0.25"/>
+    </filter>
+  </defs>
+
+  <!-- Card Background -->
+  <rect width="396" height="336" x="2" y="2" rx="16" fill="url(#bg_PUNE)" stroke="#334155" stroke-width="2"/>
+
+  <!-- Top Badge -->
+  <rect x="20" y="16" width="150" height="24" rx="12" fill="#8B5CF6" fill-opacity="0.15" stroke="#8B5CF6" stroke-width="1"/>
+  <text x="95" y="32" fill="#8B5CF6" font-family="system-ui, sans-serif" font-size="11" font-weight="700" text-anchor="middle" letter-spacing="0.5">ISL WORD SIGN</text>
+
+  <!-- Central Visual Area -->
+  <g transform="translate(200, 125)" filter="url(#glow_PUNE)">
+    
+          <circle cx="0" cy="0" r="54" fill="#8B5CF6" fill-opacity="0.1"/>
+          <!-- Prominent Letter P Hand -->
+          <text x="0" y="22" fill="url(#primary_pune)" font-family="system-ui, sans-serif" font-size="64" font-weight="900" text-anchor="middle">P</text>
+          <!-- Forward Motion Ring -->
+          <ellipse cx="0" cy="4" rx="42" ry="18" fill="none" stroke="#C084FC" stroke-width="2" stroke-dasharray="4,4"/>
+        
+  </g>
+
+  <!-- Movement Guide / Gesture Hint -->
+  <rect x="50" y="210" width="300" height="28" rx="14" fill="#1E293B" stroke="#475569" stroke-dasharray="3,3" stroke-width="1"/>
+  <text x="200" y="228" fill="#94A3B8" font-family="system-ui, sans-serif" font-size="12" font-weight="600" text-anchor="middle">
+    Motion: ISL letter P forward spiral gesture for cultural capital
+  </text>
+
+  <!-- Word Gloss & Translations -->
+  <text x="200" y="272" fill="#F8FAFC" font-family="system-ui, sans-serif" font-size="28" font-weight="800" text-anchor="middle" letter-spacing="0.5">
+    PUNE
+  </text>
+  <text x="200" y="302" fill="#8B5CF6" font-family="system-ui, sans-serif" font-size="18" font-weight="700" text-anchor="middle">
+    पुणे <tspan fill="#64748B" font-size="14" font-weight="500">[Pune]</tspan>
+  </text>
+</svg>
