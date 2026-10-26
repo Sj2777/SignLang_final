@@ -523,77 +523,24 @@ export default function LoginPage() {
         ) : isVerifyingEmailOtp ? (
           /* 3. EMAIL CONFIRMATION WAITING STEP */
           <div className={styles.form}>
-            <div
-              className={styles.incomingNotificationBanner}
-              style={{
-                background: 'linear-gradient(135deg, #064E3B, #022C22)',
-                borderColor: 'rgba(52, 211, 153, 0.4)',
-              }}
-            >
-              <div className={styles.notificationHeader}>
-                <span style={{ color: '#34D399', fontWeight: 600 }}>✓ Real Confirmation Email Dispatched</span>
-                <span className={styles.notificationTime}>Live</span>
-              </div>
-              <div className={styles.notificationBody}>
-                A confirmation link was sent to <strong>{email}</strong>. Open your email and click the confirmation link to immediately activate your account.
-              </div>
-            </div>
-
-            <div className={styles.otpBox}>
-              <div style={{ display: 'inline-flex', width: '48px', height: '48px', borderRadius: '50%', background: 'rgba(37, 99, 235, 0.1)', color: 'var(--color-primary)', alignItems: 'center', justifyContent: 'center', margin: '0 auto', fontSize: '1.4rem' }}>
+            <div className={styles.otpBox} style={{ padding: '2rem 1.5rem', textAlign: 'center' }}>
+              <div style={{ display: 'inline-flex', width: '60px', height: '60px', borderRadius: '50%', background: 'rgba(20, 184, 166, 0.1)', color: 'var(--color-primary)', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1.25rem', fontSize: '1.85rem' }}>
                 ✉️
               </div>
-              <p className={styles.otpHint}>
-                Check your inbox for an email from <strong>noreply@mail.app.supabase.io</strong>.
-                Click the <strong>Confirm your mail</strong> button inside it.
+              <p style={{ fontSize: '1.05rem', lineHeight: '1.6', color: 'var(--color-text)', margin: '0 0 1.5rem 0', fontWeight: 500 }}>
+                We have sent a confirmation email to <strong>{email}</strong>. Please click on that link to verify your email and access the dashboard.
               </p>
-
-              <button
-                type="button"
-                onClick={() => navigate('/dashboard', { replace: true })}
-                className={styles.submitBtn}
-                style={{ background: '#10B981', borderColor: '#10B981' }}
-              >
-                ✓ I've Confirmed in Email → Open Dashboard
-              </button>
-
-              <div style={{ marginTop: '0.75rem', borderTop: '1px solid var(--color-border)', paddingTop: '0.75rem' }}>
-                <p style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)', marginBottom: '0.4rem' }}>
-                  Or enter the 6-digit code if you received a code:
-                </p>
-                <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center' }}>
-                  <input
-                    type="text"
-                    maxLength={6}
-                    className={styles.otpInput}
-                    style={{ maxWidth: '180px', fontSize: '1.1rem !important', padding: '0.4rem !important' }}
-                    value={enteredEmailOtp}
-                    onChange={(e) => setEnteredEmailOtp(e.target.value.replace(/\D/g, ''))}
-                    placeholder="------"
-                  />
-                  {enteredEmailOtp.length === 6 && (
-                    <button
-                      type="button"
-                      onClick={handleVerifyEmailToken}
-                      className={styles.submitBtn}
-                      style={{ padding: '0.4rem 0.8rem', fontSize: '0.85rem' }}
-                    >
-                      Verify Code
-                    </button>
-                  )}
-                </div>
-              </div>
 
               <div className={styles.resendRow}>
                 {emailResendTimer > 0 ? (
-                  <span>Resend email in {emailResendTimer}s</span>
+                  <span>Resend link in {emailResendTimer}s</span>
                 ) : (
                   <button
                     type="button"
                     onClick={handleResendConfirmationEmail}
                     className={styles.resendBtn}
                   >
-                    Resend Confirmation Email
+                    Resend confirmation email
                   </button>
                 )}
               </div>
@@ -607,9 +554,9 @@ export default function LoginPage() {
                 setSuccessMsg('');
               }}
               className={styles.backBtn}
-              style={{ marginTop: '0.5rem', justifyContent: 'center' }}
+              style={{ marginTop: '1rem', justifyContent: 'center' }}
             >
-              ← Edit Email / Details
+              ← Edit details
             </button>
           </div>
         ) : showSelectionCards ? (

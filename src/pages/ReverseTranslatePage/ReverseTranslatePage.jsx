@@ -1,6 +1,4 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
-import Header from '../../components/Header/Header';
-import Footer from '../../components/Footer/Footer';
 import styles from './ReverseTranslatePage.module.css';
 
 const MARATHI_LETTERS = {
@@ -159,162 +157,161 @@ export default function ReverseTranslatePage() {
   const currentToken = tokens[currentSignIndex] || null;
 
   return (
-    <div className={styles.page}>
-      <Header />
+    <div className={styles.container}>
+      {/* Compact Header Bar */}
+      <header className={styles.topBar}>
+        <div>
+          <h1 className={styles.title}>
+            Text to <span className={styles.titleAccent}>ISL Sign Language</span>
+          </h1>
+          <p className={styles.subtitle}>
+            Watch authentic Indian Sign Language gestures spelled out sign by sign.
+          </p>
+        </div>
+      </header>
 
-      <main className={styles.main}>
-        <div className="container">
-          {/* Spacious, Clean Header */}
-          <div className={styles.headerSection}>
-            <h1 className={styles.title}>
-              Text to <span className={styles.titleAccent}>ISL Sign Language</span>
-            </h1>
-            <p className={styles.subtitle}>
-              Type any word, sentence, or numbers to watch authentic Indian Sign Language hand gestures.
-            </p>
+      {/* Screen-Fitted 2-Column Workspace */}
+      <div className={styles.workspace}>
+        {/* Left: Input Card */}
+        <div className={styles.card}>
+          <div className={styles.cardHeader}>
+            <span className={styles.cardTitle}>Input Text</span>
+            <div className={styles.headerActions}>
+              <button
+                type="button"
+                className={`${styles.micBtn} ${isListening ? styles.listening : ''}`}
+                onClick={toggleSpeech}
+                title="Speak into microphone"
+              >
+                {isListening ? '🎙 Listening...' : '🎤 Speak'}
+              </button>
+              <button
+                type="button"
+                className={styles.clearBtn}
+                onClick={() => { setInputText(''); handleStop(); }}
+              >
+                Clear
+              </button>
+            </div>
           </div>
 
-          {/* Spacious 2-Column Workspace */}
-          <div className={styles.workspace}>
-            {/* Left: Clean Input Card */}
-            <div className={styles.card}>
-              <div className={styles.cardHeader}>
-                <h2>Input Text</h2>
-                <div className={styles.headerActions}>
-                  <button
-                    className={`${styles.micBtn} ${isListening ? styles.listening : ''}`}
-                    onClick={toggleSpeech}
-                    title="Speak into microphone"
-                  >
-                    {isListening ? '🎙 Listening...' : '🎤 Speak'}
-                  </button>
-                  <button
-                    className={styles.clearBtn}
-                    onClick={() => { setInputText(''); handleStop(); }}
-                  >
-                    Clear
-                  </button>
-                </div>
-              </div>
+          <textarea
+            className={styles.textArea}
+            placeholder="Type words, names, or numbers (e.g., Hello Pune, Room 108)..."
+            value={inputText}
+            onChange={(e) => {
+              setInputText(e.target.value);
+              setCurrentSignIndex(0);
+            }}
+          />
 
-              <textarea
-                className={styles.textArea}
-                placeholder="Type words, names, or numbers (e.g., Hello Pune, Room 108)..."
-                value={inputText}
-                onChange={(e) => {
-                  setInputText(e.target.value);
-                  setCurrentSignIndex(0);
-                }}
-              />
-
-              <div className={styles.controlsRow}>
-                <div className={styles.speedWrapper}>
-                  <label htmlFor="speed-select">Speed:</label>
-                  <select
-                    id="speed-select"
-                    value={speed}
-                    onChange={(e) => setSpeed(Number(e.target.value))}
-                  >
-                    <option value={1000}>Slow (1.0s)</option>
-                    <option value={700}>Normal (0.7s)</option>
-                    <option value={400}>Fast (0.4s)</option>
-                  </select>
-                </div>
-
-                <div className={styles.playActions}>
-                  {isPlaying ? (
-                    <button className={styles.pauseBtn} onClick={handlePause}>
-                      ⏸ Pause
-                    </button>
-                  ) : (
-                    <button
-                      className={styles.playBtn}
-                      onClick={handlePlay}
-                      disabled={tokens.length === 0}
-                    >
-                      ▶ Play Signs
-                    </button>
-                  )}
-                  <button
-                    className={styles.stopBtn}
-                    onClick={handleStop}
-                    disabled={tokens.length === 0}
-                  >
-                    ⏹ Reset
-                  </button>
-                </div>
-              </div>
+          <div className={styles.controlsRow}>
+            <div className={styles.speedWrapper}>
+              <label htmlFor="speed-select">Speed:</label>
+              <select
+                id="speed-select"
+                value={speed}
+                onChange={(e) => setSpeed(Number(e.target.value))}
+              >
+                <option value={1000}>Slow (1.0s)</option>
+                <option value={700}>Normal (0.7s)</option>
+                <option value={400}>Fast (0.4s)</option>
+              </select>
             </div>
 
-            {/* Right: Spacious Sign Animation Card */}
-            <div className={styles.card}>
-              <div className={styles.cardHeader}>
-                <h2>Sign Display</h2>
-                <span className={styles.counterBadge}>
-                  {tokens.length > 0 ? `${currentSignIndex + 1} / ${tokens.length}` : '0 / 0'}
-                </span>
-              </div>
-
-              <div className={styles.signWindow}>
-                {tokens.length === 0 ? (
-                  <div className={styles.emptyState}>
-                    <p>Type text or speak above to see ISL signs</p>
-                  </div>
-                ) : !currentToken ? (
-                  <div className={styles.emptyState}>
-                    <p>Press Play to begin</p>
-                  </div>
-                ) : currentToken.isSpace ? (
-                  <div className={styles.spaceState}>
-                    <span className={styles.spacePill}>[ WORD PAUSE ]</span>
-                  </div>
-                ) : (
-                  <div className={styles.signFrame}>
-                    <img
-                      src={currentToken.image}
-                      alt={`ISL Sign for ${currentToken.char}`}
-                      className={styles.signImg}
-                      onError={(e) => {
-                        e.currentTarget.style.display = 'none';
-                      }}
-                    />
-                    <div className={styles.signLabelBlock}>
-                      <span className={styles.signChar}>{currentToken.char}</span>
-                      <span className={styles.signMarathi}>{currentToken.marathi}</span>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Clean Sequence Ribbon */}
-              {tokens.length > 0 && (
-                <div className={styles.ribbonContainer} ref={ribbonRef}>
-                  {tokens.map((token, idx) => {
-                    const isActive = idx === currentSignIndex;
-                    return (
-                      <button
-                        key={token.id}
-                        ref={isActive ? activeItemRef : null}
-                        className={`${styles.ribbonTile} ${isActive ? styles.ribbonActive : ''} ${
-                          token.isSpace ? styles.ribbonSpace : ''
-                        }`}
-                        onClick={() => {
-                          setIsPlaying(false);
-                          setCurrentSignIndex(idx);
-                        }}
-                      >
-                        {token.isSpace ? '␣' : token.char}
-                      </button>
-                    );
-                  })}
-                </div>
+            <div className={styles.playActions}>
+              {isPlaying ? (
+                <button type="button" className={styles.pauseBtn} onClick={handlePause}>
+                  ⏸ Pause
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className={styles.playBtn}
+                  onClick={handlePlay}
+                  disabled={tokens.length === 0}
+                >
+                  ▶ Play Signs
+                </button>
               )}
+              <button
+                type="button"
+                className={styles.stopBtn}
+                onClick={handleStop}
+                disabled={tokens.length === 0}
+              >
+                ⏹ Reset
+              </button>
             </div>
           </div>
         </div>
-      </main>
 
-      <Footer />
+        {/* Right: Sign Animation Card */}
+        <div className={styles.card}>
+          <div className={styles.cardHeader}>
+            <span className={styles.cardTitle}>Sign Display</span>
+            <span className={styles.counterBadge}>
+              {tokens.length > 0 ? `${currentSignIndex + 1} / ${tokens.length}` : '0 / 0'}
+            </span>
+          </div>
+
+          <div className={styles.signWindow}>
+            {tokens.length === 0 ? (
+              <div className={styles.emptyState}>
+                <p>Type text or speak above to see ISL signs</p>
+              </div>
+            ) : !currentToken ? (
+              <div className={styles.emptyState}>
+                <p>Press Play to begin</p>
+              </div>
+            ) : currentToken.isSpace ? (
+              <div className={styles.spaceState}>
+                <span className={styles.spacePill}>[ WORD PAUSE ]</span>
+              </div>
+            ) : (
+              <div className={styles.signFrame}>
+                <img
+                  src={currentToken.image}
+                  alt={`ISL Sign for ${currentToken.char}`}
+                  className={styles.signImg}
+                  onError={(e) => {
+                    e.currentTarget.style.display = 'none';
+                  }}
+                />
+                <div className={styles.signLabelBlock}>
+                  <span className={styles.signChar}>{currentToken.char}</span>
+                  <span className={styles.signMarathi}>{currentToken.marathi}</span>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Clean Sequence Ribbon */}
+          <div className={styles.ribbonWrapper}>
+            <div className={styles.ribbonContainer} ref={ribbonRef}>
+              {tokens.map((token, idx) => {
+                const isActive = idx === currentSignIndex;
+                return (
+                  <button
+                    type="button"
+                    key={token.id}
+                    ref={isActive ? activeItemRef : null}
+                    className={`${styles.ribbonTile} ${isActive ? styles.ribbonActive : ''} ${
+                      token.isSpace ? styles.ribbonSpace : ''
+                    }`}
+                    onClick={() => {
+                      setIsPlaying(false);
+                      setCurrentSignIndex(idx);
+                    }}
+                  >
+                    {token.isSpace ? '␣' : token.char}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
