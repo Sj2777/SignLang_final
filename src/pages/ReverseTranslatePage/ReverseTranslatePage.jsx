@@ -1,67 +1,79 @@
-import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import Header from '../../components/Header/Header';
 import Footer from '../../components/Footer/Footer';
-import {
-  buildSignSequence,
-  convertToISLGrammar,
-  ISL_SAMPLE_PHRASES,
-} from '../../lib/islTranslationEngine';
 import styles from './ReverseTranslatePage.module.css';
 
-const getSignPlaceholder = (label, marathi = '', category = '') => {
-  const badgeColor = category === 'emergency' ? '#EF4444' : category === 'greeting' ? '#10B981' : '#0D9488';
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="340" height="340" viewBox="0 0 340 340">
-    <defs>
-      <linearGradient id="cardGrad" x1="0" y1="0" x2="1" y2="1">
-        <stop offset="0%" stop-color="#1E293B"/>
-        <stop offset="100%" stop-color="#0F172A"/>
-      </linearGradient>
-    </defs>
-    <rect width="340" height="340" rx="20" fill="url(#cardGrad)" stroke="#334155" stroke-width="2"/>
-    <circle cx="170" cy="115" r="56" fill="${badgeColor}" fill-opacity="0.15" stroke="${badgeColor}" stroke-width="2"/>
-    <text x="170" y="125" fill="${badgeColor}" font-family="sans-serif" font-size="44" font-weight="700" text-anchor="middle">🤟</text>
-    <text x="170" y="210" fill="#F8FAFC" font-family="sans-serif" font-size="30" font-weight="800" text-anchor="middle">${label}</text>
-    <text x="170" y="250" fill="#94A3B8" font-family="sans-serif" font-size="20" font-weight="600" text-anchor="middle">${marathi}</text>
-    <rect x="100" y="280" width="140" height="26" rx="13" fill="${badgeColor}" fill-opacity="0.2"/>
-    <text x="170" y="297" fill="${badgeColor}" font-family="sans-serif" font-size="12" font-weight="700" text-anchor="middle">ISL WORD SIGN</text>
-  </svg>`;
-  return `data:image/svg+xml,${encodeURIComponent(svg)}`;
+const MARATHI_LETTERS = {
+  A: 'ए', B: 'बी', C: 'सी', D: 'डी', E: 'ई', F: 'एफ', G: 'जी',
+  H: 'एच', I: 'आय', J: 'जे', K: 'के', L: 'एल', M: 'एम', N: 'एन',
+  O: 'ओ', P: 'पी', Q: 'क्यू', R: 'आर', S: 'एस', T: 'टी', U: 'यू',
+  V: 'व्ही', W: 'डब्ल्यू', X: 'एक्स', Y: 'वाय', Z: 'झेड',
+  '0': '० (शून्य)', '1': '१ (एक)', '2': '२ (दोन)', '3': '३ (तीन)',
+  '4': '४ (चार)', '5': '५ (पाच)', '6': '६ (सहा)', '7': '७ (सात)',
+  '8': '८ (आठ)', '9': '९ (नऊ)'
 };
 
 export default function ReverseTranslatePage() {
-  const [inputText, setInputText] = useState('Hello Pune');
-  const [mode, setMode] = useState('grammar'); // 'grammar' | 'fingerspell'
+  const [inputText, setInputText] = useState('HELLO PUNE');
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentSignIndex, setCurrentSignIndex] = useState(0);
-  const [speed, setSpeed] = useState(750); // ms per sign
+  const [speed, setSpeed] = useState(700); // ms per sign
   const [isListening, setIsListening] = useState(false);
-  const [speechSupported, setSpeechSupported] = useState(true);
 
   const recognitionRef = useRef(null);
   const ribbonRef = useRef(null);
   const activeItemRef = useRef(null);
 
-  // Compute tokens dynamically from input
+  // Extract clean sign tokens (letters A-Z, numbers 0-9, and spaces)
   const tokens = useMemo(() => {
-    return buildSignSequence(inputText, mode);
-  }, [inputText, mode]);
+    if (!inputText || !inputText.trim()) return [];
 
-  const islGloss = useMemo(() => {
-    if (mode === 'fingerspell') return inputText.toUpperCase();
-    const words = convertToISLGrammar(inputText);
-    return words.join(' ');
-  }, [inputText, mode]);
+    const cleaned = inputText.toUpperCase().replace(/[^A-Z0-9\s]/g, ' ');
+    const chars = cleaned.split('');
+    const list = [];
+    let lastWasSpace = true;
 
-  // Setup Speech Recognition
+    chars.forEach((ch, idx) => {
+      if ((ch >= 'A' && ch <= 'Z') || (ch >= '0' && ch <= '9')) {
+        list.push({
+          id: `${ch}_${idx}`,
+          char: ch,
+          isSpace: false,
+          image: ch >= '0' && ch <= '9' 
+            ? `/assets/signs/${ch}.png` 
+            : `/assets/signs/${ch.toLowerCase()}.png`,
+          marathi: MARATHI_LETTERS[ch] || ch
+        });
+        lastWasSpace = false;
+      } else if (ch === ' ' || ch === '\n') {
+        if (!lastWasSpace && list.length > 0) {
+          list.push({
+            id: `space_${idx}`,
+            char: 'SPACE',
+            isSpace: true,
+            display: '␣'
+          });
+          lastWasSpace = true;
+        }
+      }
+    });
+
+    if (list.length > 0 && list[list.length - 1].isSpace) {
+      list.pop();
+    }
+    return list;
+  }, [inputText]);
+
+  // Speech Recognition setup
   useEffect(() => {
     if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
       const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-      recognitionRef.current = new SpeechRecognition();
-      recognitionRef.current.continuous = true;
-      recognitionRef.current.interimResults = true;
-      recognitionRef.current.lang = 'en-IN'; // Indian English
+      const sr = new SpeechRecognition();
+      sr.continuous = true;
+      sr.interimResults = true;
+      sr.lang = 'en-IN';
 
-      recognitionRef.current.onresult = (event) => {
+      sr.onresult = (event) => {
         let finalTranscript = '';
         for (let i = event.resultIndex; i < event.results.length; ++i) {
           if (event.results[i].isFinal) {
@@ -73,27 +85,18 @@ export default function ReverseTranslatePage() {
         }
       };
 
-      recognitionRef.current.onerror = (event) => {
-        console.error('Speech recognition error', event.error);
-        setIsListening(false);
-      };
-
-      recognitionRef.current.onend = () => {
-        setIsListening(false);
-      };
-    } else {
-      setSpeechSupported(false);
+      sr.onerror = () => setIsListening(false);
+      sr.onend = () => setIsListening(false);
+      recognitionRef.current = sr;
     }
 
     return () => {
-      if (recognitionRef.current) {
-        recognitionRef.current.stop();
-      }
+      if (recognitionRef.current) recognitionRef.current.stop();
     };
   }, []);
 
-  const toggleSpeechRecognition = () => {
-    if (!speechSupported || !recognitionRef.current) {
+  const toggleSpeech = () => {
+    if (!recognitionRef.current) {
       alert('Speech recognition is not supported in this browser. Please use Chrome or Edge.');
       return;
     }
@@ -104,18 +107,17 @@ export default function ReverseTranslatePage() {
       try {
         recognitionRef.current.start();
         setIsListening(true);
-      } catch (err) {
-        console.error('Mic start error:', err);
+      } catch {
+        setIsListening(false);
       }
     }
   };
 
-  // Playback timer with proper completion handling
+  // Playback timer
   useEffect(() => {
     let timer;
     if (isPlaying && tokens.length > 0) {
       if (currentSignIndex >= tokens.length - 1) {
-        // Last sign reached: keep it on display for full duration before stopping
         timer = setTimeout(() => {
           setIsPlaying(false);
         }, speed);
@@ -128,7 +130,7 @@ export default function ReverseTranslatePage() {
     return () => clearTimeout(timer);
   }, [isPlaying, currentSignIndex, tokens.length, speed]);
 
-  // Keep active ribbon item scrolled into view
+  // Auto scroll active token in timeline
   useEffect(() => {
     if (activeItemRef.current && ribbonRef.current) {
       activeItemRef.current.scrollIntoView({
@@ -147,43 +149,11 @@ export default function ReverseTranslatePage() {
     setIsPlaying(true);
   };
 
-  const handlePause = () => {
-    setIsPlaying(false);
-  };
+  const handlePause = () => setIsPlaying(false);
 
   const handleStop = () => {
     setIsPlaying(false);
     setCurrentSignIndex(0);
-  };
-
-  const handleNext = () => {
-    setIsPlaying(false);
-    setCurrentSignIndex((prev) => Math.min(tokens.length - 1, prev + 1));
-  };
-
-  const handlePrev = () => {
-    setIsPlaying(false);
-    setCurrentSignIndex((prev) => Math.max(0, prev - 1));
-  };
-
-  const handleSelectSample = (text) => {
-    setInputText(text);
-    setCurrentSignIndex(0);
-    setIsPlaying(true);
-  };
-
-  const clearText = () => {
-    setInputText('');
-    handleStop();
-  };
-
-  const speakText = (text, lang = 'mr-IN') => {
-    if (!('speechSynthesis' in window)) return;
-    window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = lang;
-    utterance.rate = 0.9;
-    window.speechSynthesis.speak(utterance);
   };
 
   const currentToken = tokens[currentSignIndex] || null;
@@ -194,80 +164,42 @@ export default function ReverseTranslatePage() {
 
       <main className={styles.main}>
         <div className="container">
-          {/* Header */}
+          {/* Spacious, Clean Header */}
           <div className={styles.headerSection}>
-            <div className={styles.badge}>
-              <span className={styles.badgeDot} />
-              Language to ISL Grammar Translation Engine
-            </div>
             <h1 className={styles.title}>
-              Text/Speech to <span className={styles.titleAccent}>ISL Sign Language</span>
+              Text to <span className={styles.titleAccent}>ISL Sign Language</span>
             </h1>
             <p className={styles.subtitle}>
-              Translate spoken or typed English into authentic Indian Sign Language (ISL) grammar (SOV) with high-res signs, Pune vocabulary, and 0-9 digits.
+              Type any word, sentence, or numbers to watch authentic Indian Sign Language hand gestures.
             </p>
           </div>
 
-          {/* Quick Dataset Samples */}
-          <div className={styles.sampleSection}>
-            <span className={styles.sampleLabel}>
-              📚 <strong>ISLTranslate Dataset</strong> Quick Phrases:
-            </span>
-            <div className={styles.sampleChips}>
-              {ISL_SAMPLE_PHRASES.map((sample, idx) => (
-                <button
-                  key={idx}
-                  className={styles.sampleChip}
-                  onClick={() => handleSelectSample(sample.text)}
-                >
-                  {sample.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
+          {/* Spacious 2-Column Workspace */}
           <div className={styles.workspace}>
-            {/* ── Left Column: Input & Grammar ── */}
-            <div className={styles.inputCard}>
-              <div className={styles.inputHeader}>
-                <div className={styles.cardHeadingGroup}>
-                  <h2>Natural Language Input</h2>
-                  <span className={styles.tokenCountBadge}>{tokens.length} Sign Tokens</span>
-                </div>
-                <div className={styles.actions}>
+            {/* Left: Clean Input Card */}
+            <div className={styles.card}>
+              <div className={styles.cardHeader}>
+                <h2>Input Text</h2>
+                <div className={styles.headerActions}>
                   <button
                     className={`${styles.micBtn} ${isListening ? styles.listening : ''}`}
-                    onClick={toggleSpeechRecognition}
-                    title={isListening ? 'Stop Listening' : 'Speak into Microphone'}
-                    disabled={!speechSupported}
+                    onClick={toggleSpeech}
+                    title="Speak into microphone"
                   >
                     {isListening ? '🎙 Listening...' : '🎤 Speak'}
                   </button>
-                  <button className={styles.clearBtn} onClick={clearText} title="Clear text">
+                  <button
+                    className={styles.clearBtn}
+                    onClick={() => { setInputText(''); handleStop(); }}
+                  >
                     Clear
                   </button>
                 </div>
               </div>
 
-              {/* Translation Mode Selector */}
-              <div className={styles.modeToggleGroup}>
-                <button
-                  className={`${styles.modeBtn} ${mode === 'grammar' ? styles.modeBtnActive : ''}`}
-                  onClick={() => { setMode('grammar'); setCurrentSignIndex(0); }}
-                >
-                  ✨ ISL Grammar & Words (SOV)
-                </button>
-                <button
-                  className={`${styles.modeBtn} ${mode === 'fingerspell' ? styles.modeBtnActive : ''}`}
-                  onClick={() => { setMode('fingerspell'); setCurrentSignIndex(0); }}
-                >
-                  🔤 Direct Fingerspelling
-                </button>
-              </div>
-
               <textarea
                 className={styles.textArea}
-                placeholder="Type any English phrase or speak (e.g., Hello Pune, Where is hospital, 1 2 3 4)..."
+                placeholder="Type words, names, or numbers (e.g., Hello Pune, Room 108)..."
                 value={inputText}
                 onChange={(e) => {
                   setInputText(e.target.value);
@@ -275,42 +207,23 @@ export default function ReverseTranslatePage() {
                 }}
               />
 
-              {/* Grammar Translation Inspector */}
-              <div className={styles.grammarInspector}>
-                <div className={styles.grammarHeader}>
-                  <span>ISL Grammatical Gloss (SOV Structure)</span>
-                  <span className={styles.grammarBadge}>
-                    {mode === 'grammar' ? 'ISL Syntax Applied' : 'Character Sequence'}
-                  </span>
-                </div>
-                <div className={styles.grammarGloss}>
-                  {islGloss || <span className={styles.glossPlaceholder}>Type text above to view ISL structure...</span>}
-                </div>
-              </div>
-
-              {/* Playback Controls */}
               <div className={styles.controlsRow}>
-                <div className={styles.speedControl}>
-                  <label>Pacing:</label>
-                  <select value={speed} onChange={(e) => setSpeed(Number(e.target.value))}>
-                    <option value={1200}>Slow (1.2s)</option>
-                    <option value={750}>Normal (0.75s)</option>
+                <div className={styles.speedWrapper}>
+                  <label htmlFor="speed-select">Speed:</label>
+                  <select
+                    id="speed-select"
+                    value={speed}
+                    onChange={(e) => setSpeed(Number(e.target.value))}
+                  >
+                    <option value={1000}>Slow (1.0s)</option>
+                    <option value={700}>Normal (0.7s)</option>
                     <option value={400}>Fast (0.4s)</option>
                   </select>
                 </div>
 
-                <div className={styles.playbackButtons}>
-                  <button
-                    className={styles.navBtn}
-                    onClick={handlePrev}
-                    disabled={currentSignIndex <= 0 || tokens.length === 0}
-                    title="Previous sign"
-                  >
-                    ⏮
-                  </button>
-
+                <div className={styles.playActions}>
                   {isPlaying ? (
-                    <button className={styles.pauseBtn} onClick={handlePause} title="Pause playback">
+                    <button className={styles.pauseBtn} onClick={handlePause}>
                       ⏸ Pause
                     </button>
                   ) : (
@@ -318,26 +231,14 @@ export default function ReverseTranslatePage() {
                       className={styles.playBtn}
                       onClick={handlePlay}
                       disabled={tokens.length === 0}
-                      title="Play ISL animation sequence"
                     >
                       ▶ Play Signs
                     </button>
                   )}
-
-                  <button
-                    className={styles.navBtn}
-                    onClick={handleNext}
-                    disabled={currentSignIndex >= tokens.length - 1 || tokens.length === 0}
-                    title="Next sign"
-                  >
-                    ⏭
-                  </button>
-
                   <button
                     className={styles.stopBtn}
                     onClick={handleStop}
                     disabled={tokens.length === 0}
-                    title="Reset to beginning"
                   >
                     ⏹ Reset
                   </button>
@@ -345,134 +246,69 @@ export default function ReverseTranslatePage() {
               </div>
             </div>
 
-            {/* ── Right Column: Sign Visualization Window ── */}
-            <div className={styles.displayCard}>
-              <div className={styles.displayHeader}>
-                <h2>ISL Sign Display</h2>
-                <span className={styles.stepCounter}>
-                  {tokens.length > 0
-                    ? `Sign ${currentSignIndex + 1} of ${tokens.length}`
-                    : 'Awaiting Input'}
+            {/* Right: Spacious Sign Animation Card */}
+            <div className={styles.card}>
+              <div className={styles.cardHeader}>
+                <h2>Sign Display</h2>
+                <span className={styles.counterBadge}>
+                  {tokens.length > 0 ? `${currentSignIndex + 1} / ${tokens.length}` : '0 / 0'}
                 </span>
               </div>
 
-              <div className={styles.animationWindow}>
+              <div className={styles.signWindow}>
                 {tokens.length === 0 ? (
-                  <div className={styles.placeholder}>
-                    Type or speak in the box to view Indian Sign Language
+                  <div className={styles.emptyState}>
+                    <p>Type text or speak above to see ISL signs</p>
                   </div>
                 ) : !currentToken ? (
-                  <div className={styles.placeholder}>Press Play to start</div>
-                ) : currentToken.type === 'space' ? (
-                  <div className={styles.spaceContainer}>
-                    <div className={styles.spaceBox}>[ WORD PAUSE ]</div>
-                    <p style={{ color: 'var(--color-text-tertiary)', fontSize: '0.85rem' }}>
-                      Natural pause between ISL concepts
-                    </p>
+                  <div className={styles.emptyState}>
+                    <p>Press Play to begin</p>
                   </div>
-                ) : currentToken.type === 'word' ? (
-                  <div className={styles.wordSignCard}>
-                    <div className={styles.wordBadgeHeader}>
-                      <span className={styles.wordTypePill}>AUTHENTIC ISL WORD SIGN</span>
-                      {currentToken.category && (
-                        <span className={styles.categoryPill}>{currentToken.category.toUpperCase()}</span>
-                      )}
-                    </div>
-
-                    <div className={styles.wordSignIcon}>
-                      <span className={styles.signHandEmoji}>🤲</span>
-                    </div>
-
-                    <div className={styles.wordMainTitle}>{currentToken.token}</div>
-                    <div className={styles.wordMarathiScript}>{currentToken.marathi}</div>
-                    <div className={styles.wordPhonetic}>[{currentToken.phonetic}]</div>
-
-                    <button
-                      className={styles.audioPronounceBtn}
-                      onClick={() => speakText(`${currentToken.token}. ${currentToken.marathi}`)}
-                      title="Pronounce sign"
-                    >
-                      🔊 Speak Pronunciation
-                    </button>
+                ) : currentToken.isSpace ? (
+                  <div className={styles.spaceState}>
+                    <span className={styles.spacePill}>[ WORD PAUSE ]</span>
                   </div>
                 ) : (
-                  <div className={styles.signDisplay}>
+                  <div className={styles.signFrame}>
                     <img
                       src={currentToken.image}
-                      alt={`ISL Sign for ${currentToken.token}`}
-                      className={styles.signImage}
+                      alt={`ISL Sign for ${currentToken.char}`}
+                      className={styles.signImg}
                       onError={(e) => {
-                        if (e.currentTarget.dataset.fallback) return;
-                        e.currentTarget.dataset.fallback = 'true';
-                        e.currentTarget.src = getSignPlaceholder(
-                          currentToken.display,
-                          currentToken.marathi
-                        );
+                        e.currentTarget.style.display = 'none';
                       }}
                     />
-
-                    <div className={styles.signMetaStrip}>
-                      <div className={styles.signLabel}>
-                        {currentToken.type === 'number'
-                          ? `Digit '${currentToken.token}'`
-                          : `Letter '${currentToken.token}'`}
-                      </div>
-
-                      {currentToken.parentWord && (
-                        <div className={styles.spellingContext}>
-                          Spelling: <strong>{currentToken.parentWord}</strong> (Letter {currentToken.letterIndex + 1}/{currentToken.totalLetters})
-                        </div>
-                      )}
-
-                      <div className={styles.marathiLabel}>
-                        {currentToken.marathi} [{currentToken.phonetic}]
-                      </div>
-
-                      <button
-                        className={styles.miniAudioBtn}
-                        onClick={() => speakText(`${currentToken.token}. ${currentToken.marathi}`)}
-                        title="Pronounce sign"
-                      >
-                        🔊 Pronounce
-                      </button>
+                    <div className={styles.signLabelBlock}>
+                      <span className={styles.signChar}>{currentToken.char}</span>
+                      <span className={styles.signMarathi}>{currentToken.marathi}</span>
                     </div>
                   </div>
                 )}
               </div>
 
-              {/* Sequence Ribbon Timeline */}
-              <div className={styles.ribbonSection}>
-                <div className={styles.ribbonHeader}>
-                  <span>ISL Sequence Timeline (Click any sign to jump)</span>
-                </div>
-                <div className={styles.previewStrip} ref={ribbonRef}>
+              {/* Clean Sequence Ribbon */}
+              {tokens.length > 0 && (
+                <div className={styles.ribbonContainer} ref={ribbonRef}>
                   {tokens.map((token, idx) => {
                     const isActive = idx === currentSignIndex;
                     return (
                       <button
-                        key={token.id || idx}
+                        key={token.id}
                         ref={isActive ? activeItemRef : null}
-                        className={`${styles.previewItem} ${isActive ? styles.activePreview : ''} ${
-                          token.type === 'word'
-                            ? styles.wordPreview
-                            : token.type === 'number'
-                            ? styles.numberPreview
-                            : token.type === 'space'
-                            ? styles.spacePreview
-                            : ''
+                        className={`${styles.ribbonTile} ${isActive ? styles.ribbonActive : ''} ${
+                          token.isSpace ? styles.ribbonSpace : ''
                         }`}
                         onClick={() => {
                           setIsPlaying(false);
                           setCurrentSignIndex(idx);
                         }}
-                        title={`${token.display} - ${token.marathi || ''}`}
                       >
-                        {token.type === 'space' ? '␣' : token.display}
+                        {token.isSpace ? '␣' : token.char}
                       </button>
                     );
                   })}
                 </div>
-              </div>
+              )}
             </div>
           </div>
         </div>
