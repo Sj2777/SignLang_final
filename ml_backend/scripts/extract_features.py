@@ -68,7 +68,7 @@ def process_all_data():
             # Skip the 'Indian' folder itself to prevent nested looping
             if d == 'Indian':
                 continue
-            if os.path.isdir(full_path) and d.isalpha():
+            if os.path.isdir(full_path) and d.isalnum():
                 classes_paths[d] = full_path
 
     classes = sorted(list(classes_paths.keys()))

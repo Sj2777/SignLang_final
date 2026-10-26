@@ -55,10 +55,13 @@ Designed with an **offline-first philosophy**, HandSpeak runs real-time computer
 - **Audio Output**: Integrated Web Speech API (`mr-IN` / `en-IN`) for immediate voice synthesis.
 - **Static Photo Upload**: Drag-and-drop or upload images for instant posture analysis.
 
-### 2. 🔤 Text & Voice ➔ ISL (Reverse Translator)
-- **Fingerspelling Visualizer**: Translates typed English sentences into animated ISL finger gestures and visual cards.
-- **Speech-to-Text**: Hands-free voice recognition input using the Web Speech API.
-- **Playback Controls**: Variable playback speed (Slow: 1.2s, Normal: 0.8s, Fast: 0.4s), scrubbable sequence preview strip, and replay controls.
+### 2. 🔤 Text & Voice ➔ ISL (Reverse Translation Engine)
+- **ISL Grammar & SOV Syntax Reordering**: Automatically translates English SVO sentence structure into authentic Indian Sign Language grammar (Subject-Object-Verb), placing question words at the sentence end and pruning non-manual auxiliary words per ISL linguistic standards.
+- **Lexicon & Word-Level Signs**: Directly recognizes authentic holistic ISL signs (Greetings, Emergency terms, Pune regional signs, Essentials) with Marathi script and phonetic pronunciation.
+- **Full 0-9 Digits & Fingerspelling**: Supports numeric signs (0–9) and finger gesture cards (A–Z) with contextual word boundary tracking.
+- **ISLTranslate & iSign Dataset Integration**: Benchmarked against 31,220+ authentic sentence pairs from the ACL 2023 **ISLTranslate** and ACL 2024 **iSign** datasets, complete with one-click quick-practice phrase chips.
+- **Comprehensive Interactive Playback**: Play, Pause, Resume, Reset, Step Forward (⏭), Step Backward (⏮), speed controls (Slow 1.2s, Normal 0.75s, Fast 0.4s), interactive timeline ribbon (click any sign to inspect), and dual-language TTS voice pronunciation.
+- **Speech-to-Text**: Hands-free voice recognition input with real-time ISL parsing using the Web Speech API.
 
 ### 3. 🎯 Gamified Speed Quiz Game
 - **Interactive Practice**: Real-time challenges prompting the user to perform randomized signs under a countdown clock.
