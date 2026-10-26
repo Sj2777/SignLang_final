@@ -114,6 +114,8 @@ export default function TranslatePage() {
   const { user } = useAuth();
   const lastLoggedSign = useRef('');
   const lastLoggedTime = useRef(0);
+  const recentPredictions = useRef([]);
+  const MIN_CONFIDENCE = 0.35;
 
   const logSignPractice = useCallback((letter) => {
     if (!user?.id || !letter) return;
@@ -126,6 +128,45 @@ export default function TranslatePage() {
       timestamp: new Date().toISOString(),
     }).catch(() => {});
   }, [user?.id]);
+
+  const updateStablePrediction = useCallback((rawPred, labelsMap) => {
+    if (!rawPred || !rawPred.letter) return;
+    if (rawPred.confidence < MIN_CONFIDENCE) return;
+
+    const buffer = recentPredictions.current;
+    buffer.push(rawPred);
+    if (buffer.length > 5) buffer.shift();
+
+    const counts = {};
+    buffer.forEach((p) => {
+      counts[p.letter] = (counts[p.letter] || 0) + 1;
+    });
+
+    let bestLetter = rawPred.letter;
+    let maxCount = 0;
+    Object.entries(counts).forEach(([letter, count]) => {
+      if (count > maxCount) {
+        maxCount = count;
+        bestLetter = letter;
+      }
+    });
+
+    if (maxCount >= 2) {
+      const matching = buffer.filter((p) => p.letter === bestLetter);
+      const avgConf = matching.reduce((acc, p) => acc + p.confidence, 0) / matching.length;
+      const mapping = (labelsMap && labelsMap[bestLetter]) || {};
+
+      setPrediction({
+        letter: bestLetter,
+        confidence: Number(avgConf.toFixed(2)),
+        english: mapping.english || bestLetter,
+        marathi: mapping.marathi || bestLetter,
+        phonetic: mapping.phonetic || bestLetter,
+        example_mr: mapping.example_mr || '',
+      });
+      logSignPractice(bestLetter);
+    }
+  }, [logSignPractice]);
 
   autoDetectRef.current = autoDetect;
   isProcessingRef.current = isProcessing;
@@ -268,14 +309,16 @@ export default function TranslatePage() {
   const applyServerResult = useCallback((data) => {
     setHandsDetected(data.hands_detected || 0);
     drawSkeleton(data.landmarks_points || []);
+    if (!data.hands_detected) {
+      recentPredictions.current = [];
+    }
     if (data.success && data.detected && data.prediction) {
-      setPrediction(data.prediction);
-      logSignPractice(data.prediction.letter);
+      updateStablePrediction(data.prediction, DEFAULT_LABELS);
       setErrorMsg('');
     } else if (data.message || data.error) {
       setErrorMsg(data.message || data.error);
     }
-  }, [drawSkeleton, logSignPractice]);
+  }, [drawSkeleton, updateStablePrediction]);
 
   const runLocalInference = useCallback(async (source, isVideo) => {
     const provider = await ensureLocalProvider();
@@ -295,20 +338,13 @@ export default function TranslatePage() {
     setHandsDetected(numHands);
     drawSkeleton(rawPoints);
     if (!features) {
+      recentPredictions.current = [];
       setErrorMsg('No hands detected in image.');
       return;
     }
 
     const localPrediction = provider.predict(features);
-    const mapping = provider.labels[localPrediction.letter] || {};
-    setPrediction({
-      ...localPrediction,
-      english: mapping.english || localPrediction.letter,
-      marathi: mapping.marathi || localPrediction.letter,
-      phonetic: mapping.phonetic || localPrediction.letter,
-      example_mr: mapping.example_mr || '',
-    });
-    logSignPractice(localPrediction.letter);
+    updateStablePrediction(localPrediction, provider.labels);
     setErrorMsg('');
   }, [drawSkeleton, ensureLocalProvider, logSignPractice]);
 
