@@ -11,8 +11,46 @@ const MARATHI_LETTERS = {
   '8': '८ (आठ)', '9': '९ (नऊ)'
 };
 
+// Core authentic Indian Sign Language word dataset
+const ISL_WORD_SIGNS = {
+  HELLO: { word: 'HELLO', marathi: 'नमस्कार', phonetic: 'Namaskar', image: '/assets/signs/words/hello.svg' },
+  NAMASTE: { word: 'NAMASTE', marathi: 'नमस्कार', phonetic: 'Namaskar', image: '/assets/signs/words/hello.svg' },
+  NAMASKAR: { word: 'NAMASKAR', marathi: 'नमस्कार', phonetic: 'Namaskar', image: '/assets/signs/words/hello.svg' },
+  HELP: { word: 'HELP', marathi: 'मदत', phonetic: 'Madat', image: '/assets/signs/words/help.svg' },
+  MADAT: { word: 'HELP', marathi: 'मदत', phonetic: 'Madat', image: '/assets/signs/words/help.svg' },
+  WATER: { word: 'WATER', marathi: 'पाणी', phonetic: 'Paani', image: '/assets/signs/words/water.svg' },
+  PANI: { word: 'WATER', marathi: 'पाणी', phonetic: 'Paani', image: '/assets/signs/words/water.svg' },
+  FOOD: { word: 'FOOD', marathi: 'जेवण', phonetic: 'Jevan', image: '/assets/signs/words/food.svg' },
+  MEAL: { word: 'FOOD', marathi: 'जेवण', phonetic: 'Jevan', image: '/assets/signs/words/food.svg' },
+  JEVAN: { word: 'FOOD', marathi: 'जेवण', phonetic: 'Jevan', image: '/assets/signs/words/food.svg' },
+  HOSPITAL: { word: 'HOSPITAL', marathi: 'दवाखाना', phonetic: 'Dawakhana', image: '/assets/signs/words/hospital.svg' },
+  DAWAKHANA: { word: 'HOSPITAL', marathi: 'दवाखाना', phonetic: 'Dawakhana', image: '/assets/signs/words/hospital.svg' },
+  POLICE: { word: 'POLICE', marathi: 'पोलीस', phonetic: 'Police', image: '/assets/signs/words/police.svg' },
+  DOCTOR: { word: 'DOCTOR', marathi: 'डॉक्टर', phonetic: 'Doctor', image: '/assets/signs/words/doctor.svg' },
+  PUNE: { word: 'PUNE', marathi: 'पुणे', phonetic: 'Pune', image: '/assets/signs/words/pune.svg' },
+  THANK: { word: 'THANK YOU', marathi: 'धन्यवाद', phonetic: 'Dhanyawaad', image: '/assets/signs/words/thankyou.svg' },
+  THANKS: { word: 'THANK YOU', marathi: 'धन्यवाद', phonetic: 'Dhanyawaad', image: '/assets/signs/words/thankyou.svg' },
+  WELCOME: { word: 'WELCOME', marathi: 'स्वागत', phonetic: 'Swaagat', image: '/assets/signs/words/welcome.svg' },
+  PLEASE: { word: 'PLEASE', marathi: 'कृपया', phonetic: 'Krupaya', image: '/assets/signs/words/please.svg' },
+  YES: { word: 'YES', marathi: 'हो', phonetic: 'Ho', image: '/assets/signs/words/yes.svg' },
+  NO: { word: 'NO', marathi: 'नाही', phonetic: 'Naahi', image: '/assets/signs/words/no.svg' },
+  SCHOOL: { word: 'SCHOOL', marathi: 'शाळा', phonetic: 'Shaala', image: '/assets/signs/words/school.svg' },
+  SHALA: { word: 'SCHOOL', marathi: 'शाळा', phonetic: 'Shaala', image: '/assets/signs/words/school.svg' },
+  TIME: { word: 'TIME', marathi: 'वेळ', phonetic: 'Vel', image: '/assets/signs/words/time.svg' },
+  VEL: { word: 'TIME', marathi: 'वेळ', phonetic: 'Vel', image: '/assets/signs/words/time.svg' },
+  FRIEND: { word: 'FRIEND', marathi: 'मित्र', phonetic: 'Mitra', image: '/assets/signs/words/friend.svg' },
+  MITRA: { word: 'FRIEND', marathi: 'मित्र', phonetic: 'Mitra', image: '/assets/signs/words/friend.svg' },
+  GOOD: { word: 'GOOD', marathi: 'चांगले', phonetic: 'Chaangle', image: '/assets/signs/words/good.svg' },
+  HOME: { word: 'HOME', marathi: 'घर', phonetic: 'Ghar', image: '/assets/signs/words/home.svg' },
+  GHAR: { word: 'HOME', marathi: 'घर', phonetic: 'Ghar', image: '/assets/signs/words/home.svg' },
+  NAME: { word: 'NAME', marathi: 'नाव', phonetic: 'Naav', image: '/assets/signs/words/name.svg' },
+  NAV: { word: 'NAME', marathi: 'नाव', phonetic: 'Naav', image: '/assets/signs/words/name.svg' },
+  TEA: { word: 'TEA', marathi: 'चहा', phonetic: 'Chaha', image: '/assets/signs/words/tea.svg' },
+  CHAHA: { word: 'TEA', marathi: 'चहा', phonetic: 'Chaha', image: '/assets/signs/words/tea.svg' }
+};
+
 export default function ReverseTranslatePage() {
-  const [inputText, setInputText] = useState('HELLO PUNE');
+  const [inputText, setInputText] = useState('Hello Pune');
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentSignIndex, setCurrentSignIndex] = useState(0);
   const [speed, setSpeed] = useState(700); // ms per sign
@@ -22,43 +60,87 @@ export default function ReverseTranslatePage() {
   const ribbonRef = useRef(null);
   const activeItemRef = useRef(null);
 
-  // Extract clean sign tokens (letters A-Z, numbers 0-9, and spaces)
+  // Extract intelligent sign tokens (authentic word signs, numeric digits, and fingerspelled names)
   const tokens = useMemo(() => {
     if (!inputText || !inputText.trim()) return [];
 
-    const cleaned = inputText.toUpperCase().replace(/[^A-Z0-9\s]/g, ' ');
-    const chars = cleaned.split('');
-    const list = [];
-    let lastWasSpace = true;
+    let textNorm = inputText
+      .replace(/thank\s+you/gi, 'THANK')
+      .replace(/[^A-Za-z0-9\s]/g, ' ')
+      .trim();
 
-    chars.forEach((ch, idx) => {
-      if ((ch >= 'A' && ch <= 'Z') || (ch >= '0' && ch <= '9')) {
+    if (!textNorm) return [];
+
+    const rawWords = textNorm.split(/\s+/).filter(Boolean);
+    const list = [];
+
+    rawWords.forEach((rawWord, wordIdx) => {
+      const upper = rawWord.toUpperCase();
+
+      // 1. Direct ISL Word Sign match
+      if (ISL_WORD_SIGNS[upper]) {
+        const item = ISL_WORD_SIGNS[upper];
         list.push({
-          id: `${ch}_${idx}`,
-          char: ch,
+          id: `word_${upper}_${wordIdx}`,
+          isWord: true,
           isSpace: false,
-          image: ch >= '0' && ch <= '9' 
-            ? `/assets/signs/${ch}.png` 
-            : `/assets/signs/${ch.toLowerCase()}.png`,
-          marathi: MARATHI_LETTERS[ch] || ch
+          char: item.word,
+          image: item.image,
+          marathi: item.marathi,
+          phonetic: item.phonetic
         });
-        lastWasSpace = false;
-      } else if (ch === ' ' || ch === '\n') {
-        if (!lastWasSpace && list.length > 0) {
+      } else if (/^\d+$/.test(upper)) {
+        // 2. Pure Numeric Sequence (digits 0-9)
+        upper.split('').forEach((d, dIdx) => {
           list.push({
-            id: `space_${idx}`,
-            char: 'SPACE',
-            isSpace: true,
-            display: '␣'
+            id: `num_${d}_${wordIdx}_${dIdx}`,
+            isWord: false,
+            isSpace: false,
+            char: d,
+            image: `/assets/signs/${d}.png`,
+            marathi: MARATHI_LETTERS[d] || d,
+            phonetic: d
           });
-          lastWasSpace = true;
-        }
+        });
+      } else {
+        // 3. Unrecognized word or personal name: fingerspell each letter
+        upper.split('').forEach((ch, chIdx) => {
+          if (ch >= 'A' && ch <= 'Z') {
+            list.push({
+              id: `letter_${ch}_${wordIdx}_${chIdx}`,
+              isWord: false,
+              isSpace: false,
+              char: ch,
+              image: `/assets/signs/${ch.toLowerCase()}.png`,
+              marathi: MARATHI_LETTERS[ch] || ch,
+              phonetic: ch
+            });
+          } else if (ch >= '0' && ch <= '9') {
+            list.push({
+              id: `num_${ch}_${wordIdx}_${chIdx}`,
+              isWord: false,
+              isSpace: false,
+              char: ch,
+              image: `/assets/signs/${ch}.png`,
+              marathi: MARATHI_LETTERS[ch] || ch,
+              phonetic: ch
+            });
+          }
+        });
+      }
+
+      // Add a natural pause between words
+      if (wordIdx < rawWords.length - 1) {
+        list.push({
+          id: `space_${wordIdx}`,
+          isWord: false,
+          isSpace: true,
+          char: 'SPACE',
+          display: '␣'
+        });
       }
     });
 
-    if (list.length > 0 && list[list.length - 1].isSpace) {
-      list.pop();
-    }
     return list;
   }, [inputText]);
 
@@ -165,7 +247,7 @@ export default function ReverseTranslatePage() {
             Text to <span className={styles.titleAccent}>ISL Sign Language</span>
           </h1>
           <p className={styles.subtitle}>
-            Watch authentic Indian Sign Language gestures spelled out sign by sign.
+            Translates vocabulary words directly into authentic ISL signs, with fingerspelling for personal names.
           </p>
         </div>
       </header>
@@ -197,7 +279,7 @@ export default function ReverseTranslatePage() {
 
           <textarea
             className={styles.textArea}
-            placeholder="Type words, names, or numbers (e.g., Hello Pune, Room 108)..."
+            placeholder="Type words, phrases, or numbers (e.g., Hello Pune, Water, Help, Hospital 108)..."
             value={inputText}
             onChange={(e) => {
               setInputText(e.target.value);
@@ -249,7 +331,12 @@ export default function ReverseTranslatePage() {
         {/* Right: Sign Animation Card */}
         <div className={styles.card}>
           <div className={styles.cardHeader}>
-            <span className={styles.cardTitle}>Sign Display</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <span className={styles.cardTitle}>Sign Display</span>
+              {currentToken && currentToken.isWord && (
+                <span className={styles.wordBadge}>ISL WORD SIGN</span>
+              )}
+            </div>
             <span className={styles.counterBadge}>
               {tokens.length > 0 ? `${currentSignIndex + 1} / ${tokens.length}` : '0 / 0'}
             </span>
@@ -273,15 +360,17 @@ export default function ReverseTranslatePage() {
                 <img
                   src={currentToken.image}
                   alt={`ISL Sign for ${currentToken.char}`}
-                  className={styles.signImg}
+                  className={currentToken.isWord ? styles.wordSignImg : styles.signImg}
                   onError={(e) => {
                     e.currentTarget.style.display = 'none';
                   }}
                 />
-                <div className={styles.signLabelBlock}>
-                  <span className={styles.signChar}>{currentToken.char}</span>
-                  <span className={styles.signMarathi}>{currentToken.marathi}</span>
-                </div>
+                {!currentToken.isWord && (
+                  <div className={styles.signLabelBlock}>
+                    <span className={styles.signChar}>{currentToken.char}</span>
+                    <span className={styles.signMarathi}>{currentToken.marathi}</span>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -297,14 +386,14 @@ export default function ReverseTranslatePage() {
                     key={token.id}
                     ref={isActive ? activeItemRef : null}
                     className={`${styles.ribbonTile} ${isActive ? styles.ribbonActive : ''} ${
-                      token.isSpace ? styles.ribbonSpace : ''
+                      token.isWord ? styles.ribbonWordTile : token.isSpace ? styles.ribbonSpace : ''
                     }`}
                     onClick={() => {
                       setIsPlaying(false);
                       setCurrentSignIndex(idx);
                     }}
                   >
-                    {token.isSpace ? '␣' : token.char}
+                    {token.isSpace ? '␣' : token.isWord ? `[${token.char}]` : token.char}
                   </button>
                 );
               })}
